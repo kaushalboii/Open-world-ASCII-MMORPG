@@ -1,39 +1,41 @@
-// 2D Side-Scrolling ASCII Action Platformer
-// Features animated Cyber Ninja, straight punches, double jump, Sprite Fusion poison VFX, and Warlord Boss
+// Main Entry Point: Pure Monospace ASCII 2D Action Platformer
+// Features animated Cyber Ninja, straight punches, double jumping, Sprite Fusion poison VFX, and Warlord Boss
 
+import { AsciiGrid } from './engine/AsciiGrid.js';
+import { AsciiNinja } from './entities/AsciiNinja.js';
+import { AsciiWorld } from './world/AsciiWorld.js';
+import { AsciiEnemy } from './entities/AsciiEnemies.js';
+import { AsciiProjectiles } from './vfx/AsciiPoisonVFX.js';
+import { AsciiFeedback } from './combat/AsciiFeedback.js';
 import { Input } from './engine/Input.js';
-import { Camera } from './engine/Camera.js';
-import { PlatformRenderer } from './engine/PlatformRenderer.js';
-import { PlatformLevel } from './world/PlatformLevel.js';
-import { PlatformPlayer } from './entities/PlatformPlayer.js';
-import { PlatformEnemy } from './entities/PlatformEnemy.js';
-import { ProjectileManager } from './vfx/PlatformVFX.js';
-import { ParticleEngine } from './vfx/ParticleEngine.js';
-import { DamageTextManager } from './combat/DamageText.js';
 import { soundSynth } from './audio/SoundSynth.js';
 
 class Game {
   constructor() {
     this.canvas = document.getElementById('gameCanvas');
-    this.renderer = new PlatformRenderer(this.canvas);
-    this.camera = new Camera(this.renderer.width, this.renderer.height);
+    this.ctx = this.canvas.getContext('2d', { alpha: false });
+
+    // Internal virtual resolution
+    this.canvas.width = 960;
+    this.canvas.height = 540;
+
+    // 100 columns x 34 rows pure ASCII grid
+    this.grid = new AsciiGrid(100, 34);
     this.input = new Input(this.canvas);
 
-    this.particles = new ParticleEngine();
-    this.damageText = new DamageTextManager();
-    this.projectiles = new ProjectileManager();
-
-    this.level = new PlatformLevel(3200, 600);
-    this.player = new PlatformPlayer(100, 480);
+    this.world = new AsciiWorld(100, 34);
+    this.player = new AsciiNinja(10, 20);
+    this.feedback = new AsciiFeedback();
+    this.projectiles = new AsciiProjectiles();
 
     this.enemies = [];
     this.initEnemies();
 
-    // Wire attack check in level to damage enemies
-    this.level.checkPlayerAttack = (hitX, hitY, radius, damage, player, damageText, particles, camera) => {
+    // Wire melee attack hit listener
+    this.world.onMeleeHit = (hitX, hitY, radius, damage, player, damageText, particles) => {
       for (const e of this.enemies) {
-        if (!e.isDead && Math.hypot(e.x - hitX, e.y - hitY) <= radius + e.width / 2) {
-          e.takeDamage(damage, damageText, particles, camera);
+        if (!e.isDead && Math.hypot(e.x - hitX, e.y - hitY) <= radius) {
+          e.takeDamage(damage, damageText, particles);
           if (e.isDead) player.kills++;
         }
       }
@@ -48,32 +50,24 @@ class Game {
 
   initEnemies() {
     this.enemies = [
-      // Street & Lower Platform Mutants
-      new PlatformEnemy(420, 500, 'mutant'),
-      new PlatformEnemy(700, 500, 'mutant'),
-      new PlatformEnemy(440, 350, 'drone'),
-      new PlatformEnemy(600, 220, 'mutant'),
+      // Platform Mutants
+      new AsciiEnemy(20, 22, 'mutant'),
+      new AsciiEnemy(46, 12, 'mutant'),
+      new AsciiEnemy(76, 22, 'mutant'),
 
-      // Industrial Zone
-      new PlatformEnemy(1100, 500, 'mutant'),
-      new PlatformEnemy(1300, 330, 'drone'),
-      new PlatformEnemy(1500, 190, 'drone'),
-      new PlatformEnemy(1720, 300, 'mutant'),
+      // Hover Drones
+      new AsciiEnemy(38, 14, 'drone'),
+      new AsciiEnemy(72, 10, 'drone'),
 
-      // High-Rise Ruins
-      new PlatformEnemy(2100, 410, 'mutant'),
-      new PlatformEnemy(2300, 340, 'drone'),
-      new PlatformEnemy(2450, 200, 'drone'),
-      new PlatformEnemy(2700, 320, 'mutant'),
-
-      // End-Stage Boss: Cyber Warlord Goliath
-      new PlatformEnemy(2980, 460, 'warlord')
+      // End-Platform Boss: Cyber Warlord Goliath
+      new AsciiEnemy(82, 8, 'warlord')
     ];
   }
 
   initUI() {
     const startAudio = () => {
       soundSynth.init();
+      soundSynth.startMusic();
       window.removeEventListener('click', startAudio);
       window.removeEventListener('keydown', startAudio);
     };
@@ -84,7 +78,15 @@ class Game {
     if (muteBtn) {
       muteBtn.addEventListener('click', () => {
         const isMuted = soundSynth.toggleMute();
-        muteBtn.textContent = isMuted ? 'UNMUTE AUDIO' : 'MUTE AUDIO';
+        muteBtn.textContent = isMuted ? 'SFX: OFF' : 'SFX: ON (M)';
+      });
+    }
+
+    const bgmBtn = document.getElementById('bgmBtn');
+    if (bgmBtn) {
+      bgmBtn.addEventListener('click', () => {
+        const isPlaying = soundSynth.toggleMusic();
+        bgmBtn.textContent = isPlaying ? 'MUSIC: ON (B)' : 'MUSIC: OFF (B)';
       });
     }
 
@@ -96,13 +98,19 @@ class Game {
         crtBtn.textContent = container.classList.contains('crt') ? 'CRT EFFECT: ON' : 'CRT EFFECT: OFF';
       });
     }
+
+    // Key shortcut 'B' for Background Music toggle
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyB') {
+        soundSynth.toggleMusic();
+      }
+    });
   }
 
   restart() {
-    this.player = new PlatformPlayer(100, 480);
-    this.projectiles = new ProjectileManager();
-    this.particles = new ParticleEngine();
-    this.damageText = new DamageTextManager();
+    this.player = new AsciiNinja(10, 20);
+    this.feedback = new AsciiFeedback();
+    this.projectiles = new AsciiProjectiles();
     this.initEnemies();
   }
 
@@ -120,68 +128,101 @@ class Game {
       if (muteBtn) muteBtn.textContent = isMuted ? 'UNMUTE AUDIO' : 'MUTE AUDIO';
     }
 
-    const spawnProj = (x, y, vx, vy, type) => {
-      this.projectiles.spawn(x, y, vx, vy, type);
-    };
+    // 1. Update Game Systems
+    this.player.update(dt, this.input, this.world, this.projectiles, this.feedback, this.feedback);
 
-    // 1. Update Player
-    this.player.update(dt, this.input, this.level, this.particles, this.damageText, this.camera, spawnProj);
-
-    // 2. Update Enemies
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
-      e.update(dt, this.player, this.level, this.particles, this.damageText, this.camera, spawnProj);
+      e.update(dt, this.player, this.world, this.projectiles, this.feedback, this.feedback);
       if (e.isDead && e.type !== 'warlord') {
         this.enemies.splice(i, 1);
       }
     }
 
-    // 3. Update Projectiles & Poison Clouds
-    this.projectiles.update(dt, this.level, this.player, this.enemies, this.damageText, this.particles, this.camera);
+    this.projectiles.update(dt, this.world, this.player, this.enemies, this.feedback, this.feedback);
+    this.feedback.update(dt);
 
-    // 4. Update Particle & Combat Text
-    this.particles.update(dt);
-    this.damageText.update(dt);
-
-    // 5. Update Camera (Smooth Horizontal Follow with Vertical Lookahead)
-    const targetCamX = this.player.x;
-    const targetCamY = Math.min(this.player.y, 400);
-    this.camera.follow(targetCamX, targetCamY, dt, 5.0);
-    this.camera.clamp(this.level.width, this.level.height);
-
-    // 6. Check Pickup Collection
-    for (let i = this.level.collectibles.length - 1; i >= 0; i--) {
-      const c = this.level.collectibles[i];
-      if (Math.hypot(this.player.x - c.x, this.player.y - c.y) < 24) {
+    // Collectibles pickup
+    for (let i = this.world.collectibles.length - 1; i >= 0; i--) {
+      const c = this.world.collectibles[i];
+      if (Math.hypot(this.player.x - c.x, this.player.y - c.y) < 3.5) {
         if (c.type === 'gold') {
           this.player.score += 50;
-          this.damageText.add(c.x, c.y, '+50 PTS', 'gold');
+          this.feedback.add(c.x, c.y - 1, '+50 PTS', 'crit');
           soundSynth.playCoin();
         } else if (c.type === 'flask') {
           this.player.flasks++;
-          this.damageText.add(c.x, c.y, '+1 FLASK', 'crit');
+          this.feedback.add(c.x, c.y - 1, '+1 FLASK', 'crit');
           soundSynth.playClank();
         }
-        this.particles.emitSparks(c.x, c.y, 8, ['*', '+']);
-        this.level.collectibles.splice(i, 1);
+        this.feedback.emit(c.x, c.y, ['*', '+']);
+        this.world.collectibles.splice(i, 1);
       }
     }
 
     this.input.update();
 
-    // 7. Render Everything
-    this.renderer.render(
-      this.level,
-      this.player,
-      this.enemies,
-      this.projectiles,
-      this.particles,
-      this.damageText,
-      this.camera,
-      dt
-    );
+    // 2. Clear & Render to Pure ASCII Character Grid
+    this.grid.clear();
+
+    // Render World (Platforms, hazards, neon signs)
+    this.world.draw(this.grid);
+
+    // Render Enemies
+    for (const e of this.enemies) {
+      e.draw(this.grid);
+    }
+
+    // Render Projectiles & Sprite Fusion Poison Clouds
+    this.projectiles.draw(this.grid);
+
+    // Render Player Character
+    this.player.draw(this.grid);
+
+    // Render Particles & Floating Damage
+    this.feedback.draw(this.grid);
+
+    // Render Top ASCII HUD
+    this.renderHUD();
+
+    // Render Game Over (if dead)
+    if (this.player.isDead) {
+      this.renderGameOver();
+    }
+
+    // 3. Output Character Matrix to Screen
+    this.grid.renderToCanvas(this.ctx, this.canvas.width, this.canvas.height);
 
     requestAnimationFrame(this.loop);
+  }
+
+  renderHUD() {
+    // Top border box
+    this.grid.drawBox(1, 0, 98, 3, 'TINY GLYPHS: 2D ACTION PLATFORMER');
+
+    const hpPct = Math.max(0, this.player.hp / this.player.maxHp);
+    const hpBars = Math.round(hpPct * 10);
+    const hpStr = '[' + '█'.repeat(hpBars) + '░'.repeat(10 - hpBars) + `] ${Math.max(0, this.player.hp)}/100 HP`;
+
+    const hudText = `NINJA ${hpStr}  |  FLASKS: ${'(o)'.repeat(this.player.flasks)}  |  SCORE: ${String(this.player.score).padStart(4, '0')}  |  KILLS: ${this.player.kills}  |  BGM: (B)`;
+    this.grid.drawString(3, 1, hudText, '#ffffff');
+
+    // Bottom Controls Line
+    const controls = '[ A/D: RUN | W/SPACE: JUMP (DOUBLE JUMP!) | J/CLICK: STRAIGHT PUNCH | K/E: POISON FLASK | B: BGM ]';
+    this.grid.drawString(Math.floor((100 - controls.length) / 2), 33, controls, '#aaaaaa');
+  }
+
+  renderGameOver() {
+    const boxW = 42;
+    const boxH = 9;
+    const boxX = Math.floor((100 - boxW) / 2);
+    const boxY = Math.floor((34 - boxH) / 2);
+
+    this.grid.drawBox(boxX, boxY, boxW, boxH, 'SYSTEM TERMINATED');
+    this.grid.drawString(boxX + 11, boxY + 2, '† HERO FELL IN COMBAT †', '#ffffff');
+    this.grid.drawString(boxX + 9, boxY + 4, `ROGUES VANQUISHED: ${this.player.kills}`, '#cccccc');
+    this.grid.drawString(boxX + 9, boxY + 5, `FINAL SCORE: ${this.player.score} PTS`, '#cccccc');
+    this.grid.drawString(boxX + 9, boxY + 7, '[ PRESS "R" TO RESPAWN ]', '#ffffff');
   }
 }
 

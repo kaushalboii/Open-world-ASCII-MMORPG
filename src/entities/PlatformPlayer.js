@@ -27,8 +27,12 @@ export class PlatformPlayer {
     this.kills = 0;
     this.flasks = 3;
 
+    // Slide state
+    this.isSliding = false;
+    this.slideTimer = 0;
+
     // Animation & Combat States
-    this.state = 'IDLE'; // 'IDLE', 'RUN', 'JUMP', 'FALL', 'ATTACK_PUNCH', 'ATTACK_SLASH'
+    this.state = 'IDLE'; // 'IDLE', 'RUN', 'JUMP', 'FALL', 'ATTACK_PUNCH', 'ATTACK_SLASH', 'SLIDE'
     this.animTimer = 0;
     this.animFrame = 0;
 
@@ -347,3 +351,4 @@ export class PlatformPlayer {
     ];
   }
 }
+

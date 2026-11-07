@@ -191,3 +191,4 @@ export class PlatformEnemy {
     ctx.restore();
   }
 }
+

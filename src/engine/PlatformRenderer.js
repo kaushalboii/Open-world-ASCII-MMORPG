@@ -131,3 +131,4 @@ export class PlatformRenderer {
     this.ctx.restore();
   }
 }
+

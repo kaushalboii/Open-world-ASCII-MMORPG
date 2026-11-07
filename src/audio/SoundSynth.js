@@ -275,6 +275,77 @@ class SoundSynth {
     });
   }
 
+  startMusic() {
+    if (this.musicPlaying) return;
+    this.init();
+    if (!this.ctx) return;
+    this.musicPlaying = true;
+    this.step = 0;
+
+    const bassline = [
+      110, 0, 110, 110, 130.81, 0, 146.83, 130.81,
+      110, 0, 110, 164.81, 146.83, 0, 130.81, 123.47
+    ];
+
+    const tick = () => {
+      if (!this.musicPlaying) return;
+      if (!this.muted && this.ctx) {
+        const t = this.ctx.currentTime;
+        const note = bassline[this.step % 16];
+        if (note > 0) {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(note, t);
+          gain.gain.setValueAtTime(0.08, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.13);
+        }
+
+        // Kick on every 4th step, hi-hat on odd steps
+        if (this.step % 4 === 0) {
+          const kickOsc = this.ctx.createOscillator();
+          const kickGain = this.ctx.createGain();
+          kickOsc.type = 'sine';
+          kickOsc.frequency.setValueAtTime(140, t);
+          kickOsc.frequency.exponentialRampToValueAtTime(30, t + 0.1);
+          kickGain.gain.setValueAtTime(0.18, t);
+          kickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+          kickOsc.connect(kickGain);
+          kickGain.connect(this.ctx.destination);
+          kickOsc.start(t);
+          kickOsc.stop(t + 0.1);
+        } else if (this.step % 2 === 1) {
+          this.playNoise(0.03, 0.03, 3000);
+        }
+      }
+      this.step++;
+      this.musicTimer = setTimeout(tick, 140);
+    };
+
+    tick();
+  }
+
+  stopMusic() {
+    this.musicPlaying = false;
+    if (this.musicTimer) {
+      clearTimeout(this.musicTimer);
+      this.musicTimer = null;
+    }
+  }
+
+  toggleMusic() {
+    if (this.musicPlaying) {
+      this.stopMusic();
+    } else {
+      this.startMusic();
+    }
+    return this.musicPlaying;
+  }
+
   toggleMute() {
     this.muted = !this.muted;
     return this.muted;

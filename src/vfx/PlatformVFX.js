@@ -181,3 +181,4 @@ export class ProjectileManager {
     ctx.restore();
   }
 }
+
