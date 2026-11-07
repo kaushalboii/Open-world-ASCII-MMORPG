@@ -1,5 +1,5 @@
 // 2D Side-Scrolling Action Platformer Enemies in ASCII
-// Blight Mutants, Hover Drones, and Lord Malakor Titan Boss
+// Blight Mutants, Hover Drones, and Ancient Colossus Titan Boss
 
 import { soundSynth } from '../audio/SoundSynth.js';
 
@@ -87,7 +87,7 @@ export class PlatformEnemy {
         this.vy = 0;
       }
     } else if (this.type === 'warlord') {
-      // Boss: Lord Malakor Titan
+      // Boss: Ancient Colossus Titan
       this.facing = player.x >= this.x ? 1 : -1;
 
       if (distToPlayer < 350) {

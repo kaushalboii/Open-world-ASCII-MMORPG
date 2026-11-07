@@ -1,5 +1,6 @@
-// UpgradeShop: In-game Arsenal & Power-Up Evolution Menu
-// Spend earned Coins from enemy kills to evolve weapons and upgrade power abilities!
+// UpgradeShop: The Boundless Spiral Primal Forge & Talent Evolution System
+// Spend extracted Aether Shards to evolve weapons and unlock primal power abilities!
+// Authored by Kaushal (kaushalboii)
 
 export class UpgradeShop {
   constructor() {
@@ -20,7 +21,7 @@ export class UpgradeShop {
       },
       {
         id: 'sword',
-        name: 'VALEN’S BROADSWORD',
+        name: 'PRIMAL BROADSWORD',
         desc: 'Wide 3-stroke cleaving combo with sweeping crescent slash arcs and heavy impact.',
         cost: 50,
         unlocked: player.unlockedWeapons.includes('sword'),
@@ -170,13 +171,13 @@ export class UpgradeShop {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00f0ff';
     ctx.font = 'bold 22px "Courier New", monospace';
-    ctx.fillText('⚡ CYBER MARINO: ARSENAL & POWER UPGRADES', renderW / 2, 45);
+    ctx.fillText('⚡ THE PRIMAL FORGE: ARSENAL & POWER UPGRADES', renderW / 2, 45);
 
     // Coins & Level Banner
     ctx.fillStyle = '#ffea00';
     ctx.font = 'bold 15px "Courier New", monospace';
     ctx.fillText(
-      `🪙 LOOT CREDITS: ${player.coins}  |  ⭐ LEVEL: ${player.level} (${player.xp}/${player.xpNeeded} XP)  |  EQUIPPED: ${player.currentWeapon.toUpperCase()}`,
+      `🪙 AETHER SHARDS: ${player.coins}  |  ⭐ RESONANCE LEVEL: ${player.level} (${player.xp}/${player.xpNeeded} XP)  |  EQUIPPED: ${player.currentWeapon.toUpperCase()}`,
       renderW / 2,
       74
     );

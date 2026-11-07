@@ -148,7 +148,7 @@ export function flash(p, t, t0, x, y, r, c, k, life) {
 export const since = (t, t0, D) => (((t - t0) % D) + D) % D;
 
 /**
- * An electric arc along a path [[x, y], ...], drawn the way Hugo strokes his bolts: a dark halo, a bright body,
+ * An electric arc along a path [[x, y], ...], drawn with high intensity: a dark halo, a bright body,
  * a white-hot core while it's fresh, light along it. C: [halo, body, glow]; k: 1 fresh, falling to 0; w: weight.
  */
 export function strokeArc(p, pts, C, k = 1, w = 1) {

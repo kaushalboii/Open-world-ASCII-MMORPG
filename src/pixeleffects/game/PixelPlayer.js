@@ -1,6 +1,8 @@
-// PixelPlayer: Martial Hero of Aetheria (Valen the Glyphwarden)
-// Supports Weapon Evolution (Dusk Dagger -> Broadsword -> Aether Blaster -> Concussion Mortar -> Tempest Wrath),
+// PixelPlayer: Martial Hero of the Spiral (Kaiden the Spiral Wanderer)
+// Equipped with Fractal Visor, Flux Ribbon Scarf, Martial Arts Straight Punch,
+// Weapon Evolution (Martial Arts -> Broadsword -> Aether Blaster -> Concussion Mortar -> Tempest Wrath),
 // XP Leveling, Magnet Shard Collection, Aerocast Dropkick Stomps, and Primal Aether Surge!
+// Authored by Kaushal (kaushalboii)
 
 import { posed, STAND, skeleton } from '../core/rig.js';
 import { READY, ANIM_RUN, ANIM_IDLE, ANIM_JUMP, ANIM_STRAIGHT_PUNCH } from '../core/poses.js';

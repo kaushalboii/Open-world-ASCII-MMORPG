@@ -1,5 +1,6 @@
-// Interactive NPCs & Story Characters for Cyber Marino
-// Commander Roland (Skyline), Alchemist Lyra (Acid Sewers), Oracle Elyon (Overlord Citadel)
+// Interactive NPCs & Story Characters for The Boundless Spiral
+// Aria the Chronicler, Kaelen the Forge Master, Seer Vesper, and Nomad Zephyr
+// Authored by Kaushal (kaushalboii)
 
 export class NPC {
   constructor(x, y, name, role, glyph = 'Ω') {
@@ -14,146 +15,68 @@ export class NPC {
   }
 
   interact(player, dialogueBox, damageText, world) {
-    if (this.role === 'roland') {
+    const floor = world && world.currentFloor ? world.currentFloor : 1;
+
+    if (this.role === 'chronicler' || this.role === 'roland') {
       if (world && world.enemies && world.enemies.every(e => e.isDead)) {
         dialogueBox.open(
           this.name,
-          `Outstanding valor, Valen! You have cleared the vanguard patrol. The ancient Leyline Gate on the right is now aligned! Step through to descend into the Sunken Cistern!`
+          `Incredible prowess, Spiral Walker! You have purified Floor ${floor}. The Celestial Ascension Gate on the far right has opened! Step through to ascend deeper into infinity!`
         );
         if (!this.hasRewarded) {
           this.hasRewarded = true;
-          player.coins = (player.coins || 0) + 100;
-          if (damageText && damageText.add) damageText.add(player.x, player.y - 20, '+100 AETHER SHARDS!', 'crit');
+          player.coins = (player.coins || 0) + 120;
+          if (damageText && damageText.add) damageText.add(player.x, player.y - 20, '+120 AETHER SHARDS!', 'crit');
         }
       } else {
         dialogueBox.open(
           this.name,
-          `Valen! Lord Malakor the Dread Automaton has shattered the 21 Primal Seals across Aetheria. Hostile automata are hunting survivors. Purge the 4 vanguard patrols, smash the clockwork siege crates for Aether Shards, and commune with our sanctuary sheep to awaken the Leyline Gate!`
+          `Greetings, Spiral Walker! You have entered Floor ${floor} of the Boundless Spiral. When the Genesis Core fractured, reality split into infinite chambers cycling through all 21 Primal Weaves. Purge the elemental hostiles, plunder the relic chests, and enter the Ascension Gate to climb without limit!`
         );
       }
-    } else if (this.role === 'lyra') {
+    } else if (this.role === 'smith' || this.role === 'lyra') {
       if (!this.hasRewarded) {
         this.hasRewarded = true;
         player.flasks = Math.min(player.maxFlasks || 5, (player.flasks || 2) + 2);
         player.coins = (player.coins || 0) + 150;
         dialogueBox.open(
           this.name,
-          `Watch your footing, Valen! The Sunken Cistern is flooded with caustic acid runoff. Leap across elevated catwalks and avoid the toxic mire! Take these +2 Poison Flasks [K/E] and +150 Aether Shards to dissolve armored automata and plunder the fortified chests!`
+          `Take these +2 Toxic Flasks [E/K] and +150 Aether Shards! As you ascend higher, elemental resistance and enemy armor will increase. Use [Q] to switch between your Dagger, Broadsword, Blaster, and Mortar to exploit their weaknesses!`
         );
         if (damageText && damageText.add) damageText.add(player.x, player.y - 20, '+2 FLASKS & +150 SHARDS!', 'crit');
       } else {
         dialogueBox.open(
           this.name,
-          `Remember: The caustic acid burns on contact! Stomp onto automata from above or throw poison flasks to corrode their heavy hull. The portal to the Dread Citadel awaits on the right aqueduct!`
+          `Remember: Every 5th floor holds a Colossus Boss Trial. Stomp from above for massive bonus damage, and visit the Arsenal Forge [U] to boost your attributes!`
         );
       }
-    } else if (this.role === 'elyon') {
+    } else if (this.role === 'oracle' || this.role === 'elyon') {
       if (!this.hasRewarded) {
         this.hasRewarded = true;
         player.hp = player.maxHp;
         player.energy = player.maxEnergy;
         dialogueBox.open(
           this.name,
-          `You have breached the Dread Citadel, Valen! Lord Malakor awaits in the clockwork throne room. I bestow upon you the Blessing of Aetheria: Full Life and Maximum Energy! Unleash your Concussion Mortar and summon Tempest Wrath to shatter Malakor and restore the 21 Primal Seals forever!`
+          `I bestow upon you the Blessing of the Boundless Core: Full Health and Maximum Energy! The Spiral continues forever — let your resonance shine across all dimensions!`
         );
-        if (damageText && damageText.add) damageText.add(player.x, player.y - 20, '★ BLESSING OF AETHERIA: FULL LIFE/NRG ★', 'crit');
+        if (damageText && damageText.add) damageText.add(player.x, player.y - 20, '★ BLESSING OF THE CORE: FULL LIFE & ENERGY ★', 'crit');
       } else {
         dialogueBox.open(
           this.name,
-          `Strike true, Warden! Use [Q] to switch between your Broadsword, Blaster, Concussion Mortar, and Tempest Wrath. Dodge Malakor’s mortar barrages and restore peace to Aetheria!`
+          `Ascend boldly! There is no ceiling to the Boundless Spiral. Test the limits of your martial power and harness the 244 Primal Arts!`
         );
       }
-    } else if (this.role === 'king') {
-      if (player.kills >= 10) {
-        dialogueBox.open(
-          this.name,
-          `Incredible valor, Sir Knight! You have defeated ${player.kills} rogues. Here is the Royal Bounty for your bravery!`
-        );
-        if (player.addGold) player.addGold(100, damageText);
-      } else {
-        dialogueBox.open(
-          this.name,
-          `Greetings, Sir Knight! The kingdom has been overrun by rogue raiders. Patrol the island, protect the villagers, and slay 10 bandits to claim the Royal Bounty!`
-        );
-      }
-    } else if (this.role === 'blacksmith') {
-      if (player.weaponLevel >= 2) {
-        dialogueBox.open(
-          this.name,
-          `Your blade is already honed to perfection with legendary tempered steel! Use it well in battle!`
-        );
-      } else if ((player.gold || player.coins) >= 50) {
-        dialogueBox.open(
-          this.name,
-          `You have the 50 Scrap! Shall I forge you the Heavy Broadsword? (Increases slash damage and cleaving reach!)`,
-          [
-            {
-              label: 'Upgrade Blade ($50)',
-              action: () => {
-                if (player.gold !== undefined) player.gold -= 50;
-                else player.coins -= 50;
-                player.weaponLevel = 2;
-                player.weaponName = 'Heavy Broadsword';
-                player.currentWeapon = 'sword';
-                if (damageText && damageText.add) damageText.add(player.x, player.y, 'WEAPON UPGRADED!', 'crit');
-              }
-            }
-          ]
-        );
-      } else {
-        dialogueBox.open(
-          this.name,
-          `Welcome to the Forge! Bring me 50 Scrap and I will forge you a mighty Broadsword with extended reach and devastating power.`
-        );
-      }
-    } else if (this.role === 'shepherd') {
+    } else if (this.role === 'nomad') {
       dialogueBox.open(
         this.name,
-        `Welcome to the pasture! Be gentle with my cyber sheep {m} — they get skittish when blasters and swords are firing! They love grazing in peace.`
+        `I travel between the fractal layers of the Spiral. Pet the sanctuary sheep {m} for gentle wisdom and +25 XP, and strike the lucky blocks [ ? ] for invulnerability stars!`
       );
     }
   }
 
-  render(ctx, cameraOrScale, player) {
-    let screenX = this.x;
-    let screenY = this.y;
-
-    if (cameraOrScale && typeof cameraOrScale.worldToScreen === 'function') {
-      const s = cameraOrScale.worldToScreen(this.x, this.y);
-      screenX = s.x;
-      screenY = s.y;
-    } else if (typeof cameraOrScale === 'number') {
-      screenX = this.x * cameraOrScale;
-      screenY = this.y * cameraOrScale;
+  draw(grid) {
+    if (grid && grid.setChar) {
+      grid.setChar(Math.round(this.x), Math.round(this.y), this.glyph, '#00f0ff', 1.0);
     }
-
-    const dist = player ? Math.hypot(player.x - this.x, player.y - this.y) : 999;
-
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // 1. NPC Glow & Glyph
-    ctx.font = 'bold 16px "Courier New", monospace';
-    ctx.fillStyle = '#00f0ff';
-    ctx.shadowColor = '#00f0ff';
-    ctx.shadowBlur = 8;
-    ctx.fillText(this.glyph, screenX, screenY);
-    ctx.shadowBlur = 0;
-
-    // 2. Nameplate
-    ctx.font = 'bold 11px "Courier New", monospace';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(this.name, screenX, screenY - 14);
-
-    // 3. Interaction Prompt if Player is Near
-    if (dist <= this.promptDistance && (!player || !player.isDead)) {
-      ctx.font = 'bold 10px "Courier New", monospace';
-      ctx.fillStyle = '#ffea00';
-      ctx.fillText('[E / SPACE: TALK]', screenX, screenY + 16);
-    }
-
-    ctx.restore();
   }
 }
-

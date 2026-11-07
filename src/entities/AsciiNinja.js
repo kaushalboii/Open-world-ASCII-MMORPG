@@ -1,5 +1,6 @@
-// Animated ASCII Martial Hero (Valen the Glyphwarden)
+// Animated ASCII Martial Hero (Kaiden the Spiral Wanderer)
 // Handcrafted multi-line ASCII art frames for Idle, 6-frame Run, Straight Punch, Jump, and Poison Flask throw
+// Authored by Kaushal (kaushalboii)
 
 import { soundSynth } from '../audio/SoundSynth.js';
 

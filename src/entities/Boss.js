@@ -1,4 +1,4 @@
-// Epic Boss Encounter: Lord Malakor the Warlord
+// Epic Boss Encounter: Ancient Colossus Titan Mech
 // Features Ground Stomp Shockwaves, Massive Cleave, and Boss Health Bar
 
 import { soundSynth } from '../audio/SoundSynth.js';
@@ -237,7 +237,7 @@ export class Boss {
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('† LORD MALAKOR THE WARLORD †', viewWidth / 2, barY - 6);
+    ctx.fillText('★ ANCIENT COLOSSUS TITAN MECH ★', viewWidth / 2, barY - 6);
 
     // Fill Bar
     const pct = Math.max(0, this.hp / this.maxHp);

@@ -257,7 +257,7 @@ export class Swarm {
   }
 }
 
-// Hugo's flame layers: [width, height, ramp step] from the widest dark outer flame to the white-hot heart
+// Primal flame layers: [width, height, ramp step] from the widest dark outer flame to the white-hot heart
 const LAYERS = [[1, 1, 6], [0.76, 0.86, 4], [0.54, 0.68, 2], [0.3, 0.42, 0]];
 
 /**

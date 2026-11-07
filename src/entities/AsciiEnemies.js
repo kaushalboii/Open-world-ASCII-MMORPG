@@ -1,5 +1,5 @@
 // Multi-Line Animated ASCII Enemies
-// Blight Mutants, Hover Drones, and Lord Malakor Titan Boss
+// Blight Mutants, Hover Drones, and Ancient Colossus Titan Boss
 
 import { soundSynth } from '../audio/SoundSynth.js';
 
@@ -83,7 +83,7 @@ export class AsciiEnemy {
         this.vy = 0;
       }
     } else if (this.type === 'warlord') {
-      // Boss Lord Malakor Titan
+      // Boss: Ancient Colossus Titan
       this.facing = player.x >= this.x ? 1 : -1;
 
       if (distToPlayer < 45) {

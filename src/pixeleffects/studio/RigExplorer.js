@@ -390,7 +390,7 @@ export class RigExplorer {
     );
 
     targetCtx.fillStyle = '#00ff88';
-    targetCtx.fillText('⚡ Valen: Chronicles of Aetheria Engine • Zero External Assets • Created by Kaushal', renderW - 490, renderH - 18);
+    targetCtx.fillText('⚡ The Boundless Spiral Engine • Zero External Assets • Created by Kaushal', renderW - 490, renderH - 18);
 
     targetCtx.restore();
   }

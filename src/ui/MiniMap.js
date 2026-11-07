@@ -1,5 +1,5 @@
-// Real-time Tactical Radar & Mini-Map for Valen: Chronicles of Aetheria
-// Renders sector platforms, player coordinates, enemy signals, crates, and warp portals
+// Real-time Tactical Radar & Mini-Map for The Boundless Spiral
+// Renders chamber platforms, player coordinates, enemy signals, crates, and celestial gates
 
 import { TileType } from '../world/WorldMap.js';
 

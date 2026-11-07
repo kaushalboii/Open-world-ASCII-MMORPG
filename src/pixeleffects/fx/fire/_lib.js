@@ -37,7 +37,7 @@ export function looped(t, D, count, seed, make, draw) {
   }
 }
 
-/** Hugo's flicker, 0.74 to 1: a slow breath and a fast crackle. N(rate, seed) at the current time. */
+/** Thermal flicker, 0.74 to 1: a slow breath and a fast crackle. N(rate, seed) at the current time. */
 export const flicker = (N, s = 0) => 0.74 + 0.16 * N(7.3, 1 + s) + 0.1 * N(19, 2 + s);
 
 /** A fire ramp hot-first (H[0] white .. H[8] smouldering) from a palette dark to bright, any length. */

@@ -1,6 +1,8 @@
-// Main Orchestrator for Valen: Chronicles of Aetheria
-// Features The 21 Primal Seals, Narrative NPC Dialogues, Weapon Evolution (Dagger -> Broadsword -> Blaster -> Mortar -> Lightning),
-// Aerocast Dropkick Stomps, Aether Surge, Destructibles & Sanctuary Sheep, Upgrade Forge, 3D IK Rig, and 244-effect VFX Studio!
+// Main Orchestrator for The Boundless Spiral: Ascension of Zero
+// Features Infinite Ascension (Floors 1 to ∞), 21 Primal Weaves (244 effects),
+// 10 Elemental Biomes, Colossi Boss Trials, Weapon Evolution (Martial Arts -> Broadsword -> Blaster -> Mortar -> Lightning),
+// Aerocast Dropkick Stomps, Aether Surge, Destructibles & Sanctuary Sheep, Primal Forge, 3D IK Rig, and 244-effect VFX Studio!
+// Authored by Kaushal (kaushalboii)
 
 import { PixelPlayer } from './pixeleffects/game/PixelPlayer.js';
 import { PixelWorld } from './pixeleffects/game/PixelWorld.js';
@@ -12,7 +14,7 @@ import { Input } from './engine/Input.js';
 import { soundSynth } from './audio/SoundSynth.js';
 import { createFrame, clearFrame, composite } from './pixeleffects/core/index.js';
 
-class ValenApp {
+class SpiralApp {
   constructor() {
     this.canvas = document.getElementById('gameCanvas');
     this.ctx = this.canvas.getContext('2d', { alpha: false });
@@ -545,7 +547,8 @@ class ValenApp {
 
             if (e.type === 'warlord') {
               soundSynth.playVictory();
-              setTimeout(() => this.setScreen('VICTORY'), 1400);
+              this.world.addFloatingText(`★ ${e.name || 'COLOSSUS'} PURGED! ★`, e.x, e.y - 30, '#00ff88');
+              setTimeout(() => this.setScreen('VICTORY'), 1200);
             }
           }
         }
@@ -609,7 +612,7 @@ class ValenApp {
     ctx.font = 'bold 12px "Courier New", monospace';
 
     // Top HUD Bar Background
-    ctx.fillStyle = 'rgba(10, 10, 16, 0.88)';
+    ctx.fillStyle = 'rgba(10, 10, 16, 0.92)';
     ctx.fillRect(16, 10, 928, 44);
     ctx.strokeStyle = '#333348';
     ctx.strokeRect(16, 10, 928, 44);
@@ -617,72 +620,87 @@ class ValenApp {
     // HP Bar
     ctx.fillStyle = '#ffffff';
     ctx.fillText('HP:', 28, 36);
-    const hpRatio = this.player.hp / this.player.maxHp;
+    const hpRatio = Math.max(0, this.player.hp / this.player.maxHp);
     ctx.fillStyle = '#221111';
-    ctx.fillRect(55, 22, 130, 18);
+    ctx.fillRect(52, 22, 110, 18);
     ctx.fillStyle = this.theme === 'bw' ? '#ffffff' : '#ff3344';
-    ctx.fillRect(55, 22, 130 * hpRatio, 18);
+    ctx.fillRect(52, 22, 110 * hpRatio, 18);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`${Math.ceil(this.player.hp)}/${this.player.maxHp}`, 90, 36);
+    ctx.fillText(`${Math.ceil(this.player.hp)}/${this.player.maxHp}`, 76, 36);
 
     // Energy Bar
-    ctx.fillText('NRG:', 198, 36);
-    const nrgRatio = this.player.energy / this.player.maxEnergy;
+    ctx.fillText('NRG:', 172, 36);
+    const nrgRatio = Math.max(0, this.player.energy / this.player.maxEnergy);
     ctx.fillStyle = '#112222';
-    ctx.fillRect(235, 22, 100, 18);
+    ctx.fillRect(206, 22, 75, 18);
     ctx.fillStyle = this.theme === 'bw' ? '#cccccc' : '#00f0ff';
-    ctx.fillRect(235, 22, 100 * nrgRatio, 18);
+    ctx.fillRect(206, 22, 75 * nrgRatio, 18);
+
+    // Floor Badge & Best Floor
+    ctx.fillStyle = '#ff007f';
+    ctx.fillText(`FL ${this.world.currentFloor}`, 296, 36);
+    ctx.fillStyle = '#8888aa';
+    ctx.font = '10px "Courier New", monospace';
+    ctx.fillText(`(BEST: FL ${this.world.bestFloor})`, 338, 36);
+    ctx.font = 'bold 12px "Courier New", monospace';
 
     // Level & XP
     ctx.fillStyle = '#76ff03';
-    ctx.fillText(`LVL ${this.player.level} (${this.player.xp}/${this.player.xpNeeded} XP)`, 350, 36);
+    ctx.fillText(`LVL ${this.player.level}`, 465, 36);
 
-    // Coins / Rewards
+    // Aether Shards / Coins
     ctx.fillStyle = '#ffea00';
-    ctx.fillText(`🪙 ${this.player.coins}`, 510, 36);
+    ctx.fillText(`🪙 ${this.player.coins}`, 530, 36);
 
     // Active Weapon Badge
-    const weaponIcons = { knife: '🗡️ KNIFE', sword: '⚔️ SWORD', pistol: '🔫 BLASTER', rocket: '🚀 ROCKET', lightning: '⚡ LIGHTNING' };
+    const weaponIcons = { knife: '👊 PUNCH/🗡️', sword: '⚔️ SWORD', pistol: '🔫 BLASTER', rocket: '🚀 MORTAR', lightning: '⚡ TEMPEST' };
     ctx.fillStyle = '#00f0ff';
-    ctx.fillText(`[ ${weaponIcons[this.player.currentWeapon] || 'WEAPON'} ] (Q)`, 610, 36);
+    ctx.fillText(`[ ${weaponIcons[this.player.currentWeapon] || 'WEAPON'} ] (Q)`, 615, 36);
+
+    // Hostiles remaining
+    const aliveCount = this.world.enemies.filter((e) => !e.isDead).length;
+    ctx.fillStyle = aliveCount === 0 ? '#00ff88' : '#ff4466';
+    ctx.fillText(`FOES: ${aliveCount}`, 780, 36);
 
     // Flasks
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`FLASKS: ${'🧪'.repeat(this.player.flasks)}`, 800, 36);
+    ctx.fillText(`🧪 ${this.player.flasks}`, 870, 36);
 
     // Objective Banner below top HUD bar
-    ctx.fillStyle = 'rgba(8, 8, 14, 0.88)';
-    ctx.fillRect(16, 58, 620, 24);
+    ctx.fillStyle = 'rgba(8, 8, 14, 0.90)';
+    ctx.fillRect(16, 58, 680, 24);
     ctx.strokeStyle = '#222238';
-    ctx.strokeRect(16, 58, 620, 24);
+    ctx.strokeRect(16, 58, 680, 24);
 
     ctx.fillStyle = '#00f0ff';
     ctx.font = 'bold 10px "Courier New", monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(`[ ${this.world.sectorName} ] ${this.world.objective || 'MISSION ACTIVE'}`, 24, 74);
+    ctx.fillText(`[ ${this.world.sectorName} ] ${this.world.objective || 'ASCEND THROUGH THE BOUNDLESS SPIRAL'}`, 24, 74);
 
     // Star Power Banner if active
     if (this.player.starPowerTimer > 0) {
       ctx.fillStyle = '#ffff00';
       ctx.textAlign = 'center';
-      ctx.fillText(`★ STAR POWER (${this.player.starPowerTimer.toFixed(1)}s) ★`, 480, 100);
+      ctx.font = 'bold 12px "Courier New", monospace';
+      ctx.fillText(`★ AETHER SURGE INVULNERABILITY (${this.player.starPowerTimer.toFixed(1)}s) ★`, 480, 100);
     }
 
-    // Boss Bar if Goliath is alive
+    // Boss Bar if Colossus is alive
     const boss = this.world.enemies.find((e) => e.type === 'warlord');
     if (boss && !boss.isDead) {
-      ctx.fillStyle = 'rgba(20, 10, 20, 0.9)';
-      ctx.fillRect(280, 485, 400, 32);
-      ctx.strokeStyle = '#ff3366';
-      ctx.strokeRect(280, 485, 400, 32);
+      ctx.fillStyle = 'rgba(20, 10, 20, 0.92)';
+      ctx.fillRect(260, 485, 440, 32);
+      ctx.strokeStyle = '#ff007f';
+      ctx.strokeRect(260, 485, 440, 32);
 
-      const bossRatio = boss.hp / boss.maxHp;
-      ctx.fillStyle = this.theme === 'bw' ? '#ffffff' : '#ff2255';
-      ctx.fillRect(284, 489, 392 * bossRatio, 24);
+      const bossRatio = Math.max(0, boss.hp / boss.maxHp);
+      ctx.fillStyle = this.theme === 'bw' ? '#ffffff' : '#ff0055';
+      ctx.fillRect(264, 489, 432 * bossRatio, 24);
 
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      ctx.fillText(`GOLIATH PRIME TITAN MECH — ${Math.ceil(boss.hp)} HP`, 480, 506);
+      ctx.font = 'bold 11px "Courier New", monospace';
+      ctx.fillText(`★ ${boss.name || 'ANCIENT COLOSSUS'} — ${Math.ceil(boss.hp)} HP ★`, 480, 506);
     }
 
     ctx.restore();
@@ -705,28 +723,28 @@ class ValenApp {
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00f0ff';
-    ctx.font = 'bold 30px "Courier New", monospace';
-    ctx.fillText('VALEN: CHRONICLES OF AETHERIA', 480, 120);
+    ctx.font = 'bold 28px "Courier New", monospace';
+    ctx.fillText('THE BOUNDLESS SPIRAL: ASCENSION OF ZERO', 480, 115);
 
-    ctx.fillStyle = '#ffea00';
+    ctx.fillStyle = '#ff007f';
     ctx.font = '13px "Courier New", monospace';
-    ctx.fillText('THE 21 PRIMAL SEALS • MARTIAL RUN & JUMP • PROCEDURAL PIXEL ENGINE', 480, 155);
+    ctx.fillText('21 PRIMAL WEAVES • 244 VISUAL EFFECTS • INFINITE ASCENSION (FLOORS 1 - ∞)', 480, 148);
     ctx.fillStyle = '#8888aa';
     ctx.font = '11px "Courier New", monospace';
-    ctx.fillText('Original Action Adventure by Kaushal (kaushalboii) • Procedural Fluid Engine • Web Audio', 480, 178);
+    ctx.fillText('Original Action RPG Created by Kaushal (kaushalboii) • Procedural Engine • Web Audio', 480, 172);
 
     const options = [
-      { text: '▶  [1] PLAY STORY CAMPAIGN', screen: 'PLAYING' },
-      { text: '📜  [2] STORY & CODEX (21 SEALS)', screen: 'STORY_CODEX' },
-      { text: '⚡  [3] ARSENAL FORGE & PERKS', screen: 'UPGRADE_SHOP' },
+      { text: '▶  [1] ASCEND THE SPIRAL (FLOORS 1 - ∞)', screen: 'PLAYING' },
+      { text: '📜  [2] STORY CODEX (21 PRIMAL WEAVES)', screen: 'STORY_CODEX' },
+      { text: '⚡  [3] PRIMAL FORGE & TALENTS', screen: 'UPGRADE_SHOP' },
       { text: '🧪  [4] VFX STUDIO (244 EFFECTS)', screen: 'VFX_STUDIO' },
       { text: '🧬  [5] SPRITE ANIMATOR & 3D RIG', screen: 'PIXEL_RIG' },
-      { text: '📖  [6] HOW TO PLAY & GUIDE', screen: 'GUIDE' },
+      { text: '📖  [6] SURVIVAL CODEX & CONTROLS', screen: 'GUIDE' },
       { text: '⚙️  [7] SETTINGS & THEMES', screen: 'SETTINGS' },
     ];
 
     options.forEach((opt, i) => {
-      const y = 215 + i * 38;
+      const y = 210 + i * 38;
       ctx.fillStyle = '#12121c';
       ctx.fillRect(280, y - 18, 400, 30);
       ctx.strokeStyle = '#333348';
@@ -739,7 +757,7 @@ class ValenApp {
 
     ctx.fillStyle = '#777788';
     ctx.font = '11px "Courier New", monospace';
-    ctx.fillText('Press [SPACE] to Play • [Q] Switch Weapon • [U] Arsenal Forge • [T] Theme', 480, 508);
+    ctx.fillText('Press [SPACE] to Play • [Q] Switch Weapon • [U] Primal Forge • [T] Theme', 480, 508);
 
     if (this.input.wasJustPressed('Digit1') || this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) this.setScreen('PLAYING');
     if (this.input.wasJustPressed('Digit2')) this.setScreen('STORY_CODEX');
@@ -760,38 +778,38 @@ class ValenApp {
 
     ctx.fillStyle = '#00f0ff';
     ctx.font = 'bold 22px "Courier New", monospace';
-    ctx.fillText('📖 VALEN: GAMEPLAY, STORY & CONTROLS GUIDE', 40, 42);
+    ctx.fillText('📖 THE BOUNDLESS SPIRAL: ASCENSION GUIDE', 40, 42);
 
     ctx.fillStyle = '#cccccc';
     ctx.font = '11.5px "Courier New", monospace';
     let y = 72;
     const lines = [
-      'STORY & THE 21 PRIMAL SEALS:',
-      '  • Lord Malakor the Dread Automaton locked away the 21 Primal Seals across Aetheria.',
-      '  • Journey across 3 Terraces: Azure Skyline, Sunken Cistern, and the Dread Citadel.',
-      '  • Commune with Allied Leaders: Commander Roland [Ω], Alchemist Lyra [Ψ], and High Seer Elyon [Φ].',
+      'THE GENESIS FRACTURE & INFINITE ASCENSION:',
+      '  • Reality collapsed into The Boundless Spiral—an infinite dimensional labyrinth of ascending chambers.',
+      '  • Kaiden the Spiral Wanderer harnesses the 21 Primal Weaves (244 procedural visual effects) to ascend.',
+      '  • UNLIMITED LEVELS (Floors 1 to ∞): Every chamber features procedurally seeded platforms and elemental enemies.',
+      '  • 10 Elemental Biomes cycle continuously: Ignis Forge, Glacial Labyrinth, Fulgur Bastion, Verdant Cradle, and more.',
+      '  • Colossi Boss Trials: Every 5th floor unleashes an Ancient Colossus (Pyroclast, Glacial, Tempest, Void, etc.).',
       '',
-      'MARTIAL AEROCAST PLUNGE & GLYPHIC CACHES:',
+      'MARTIAL MOVES, AEROCAST PLUNGE & CACHES:',
+      '  • Straight Punch & Cyan Blast: Rapid flurry martial arts with kinetic cyan energy shockwaves.',
       '  • Dropkick Stomp: Fall onto automata or crates from above to crush them and rebound high!',
-      '  • Primal Glyphic Caches [ ? ]: Strike from underneath to shower Aether Shards, XP, and healing dew.',
+      '  • Lucky Relic Blocks [ ? ]: Strike from underneath to release Aether Shards, XP, and healing Life Dew.',
       '  • Smashable Supply Crates [x] & Relic Chests [=]: Hit with weapons or stomp to plunder scrap.',
       '  • Sanctuary Sheep {m}: Roaming pasture fauna. Bleats gently and awards +25 XP when petted [E].',
-      '  • Aether Surge: Rare stars grant radiant invulnerability to vaporize automata on contact.',
+      '  • Aether Surge Star: Rare celestial star granting radiant invulnerability to vaporize hostiles on contact.',
       '',
       'WEAPON EVOLUTION ([Q] TO SWITCH EQUIPPED WEAPON):',
+      '  • Martial Arts & Cyan Blast   : Rapid kinetic flurry with cyan shockwave impacts.',
       '  • Dusk Dagger (Melee)         : 6-hit rapid flurry piercing stabs with spark bursts.',
-      '  • Valen’s Broadsword (Melee)   : 3-stroke heavy blade combo with sweeping crescent slash arcs.',
-      '  • Aether Blaster (Ranged)     : Focused photon projectile beams crossing the battlefield.',
-      '  • Concussion Mortar (Ordnance): Long-range explosive shells dealing massive kinetic detonation.',
-      '  • Tempest Wrath (Storm)       : Summons screen-clearing high-voltage celestial thunderbolts.',
+      '  • Broadsword (Floor 2 Unlock) : 3-stroke heavy blade combo with sweeping crescent slash arcs.',
+      '  • Aether Blaster (Floor 4)    : Long-range focused photon projectile beams.',
+      '  • Concussion Mortar (Floor 7) : Heavy ballistic ordnance with massive kinetic detonations.',
+      '  • Tempest Wrath (Floor 10)    : Screen-clearing high-voltage celestial thunderbolts.',
       '',
-      'ARSENAL FORGE ([U] / [TAB]):',
-      '  • Spend Aether Shards to upgrade Damage Multiplier, Max HP, Energy, Magnet Pull, and Speed.',
-      '',
-      'SPRITE ANIMATOR & 3D RIG ([5] / NAV TAB):',
-      '  • Test 4 Animation States: Run (6 frames), Idle (4 frames), Jump (3 frames), Attack (Straight Punch).',
-      '  • Type Motion Prompts (e.g. "Straight punch animation") to preview live martial moves.',
-      '  • Switch real-time renderers: Pixel Art, Smooth ASCII Matrix (60 FPS), Hybrid, and 3D Skeleton.',
+      'CELESTIAL ASCENSION GATES:',
+      '  • Clear all hostiles on any floor to awaken the Celestial Ascension Gate at the far right.',
+      '  • Step into the portal to ascend into the next chamber, claim floor bonuses, and unlock milestone weapons!',
       '',
       'Press [ESC] or click MENU to return.',
     ];
@@ -862,28 +880,32 @@ class ValenApp {
     this.renderGame();
     const ctx = this.ctx;
     ctx.save();
-    ctx.fillStyle = 'rgba(5, 15, 10, 0.85)';
+    ctx.fillStyle = 'rgba(5, 15, 10, 0.88)';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00ff88';
-    ctx.font = 'bold 36px "Courier New", monospace';
-    ctx.fillText('MISSION COMPLETE!', 480, 210);
+    ctx.font = 'bold 34px "Courier New", monospace';
+    ctx.fillText('★ DIMENSIONAL COLOSSUS PURGED! ★', 480, 200);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '16px "Courier New", monospace';
-    ctx.fillText(`LORD MALAKOR DEFEATED • 21 PRIMAL SEALS RESTORED!`, 480, 255);
+    ctx.fillText(`FLOOR ${this.world.currentFloor} CLEARED • CELESTIAL ASCENSION GATE UNLOCKED`, 480, 245);
     ctx.fillText(
-      `Score: ${this.player.score} | Aether Shards: ${this.player.coins} | Kills: ${this.player.kills} | Level: ${this.player.level}`,
+      `Score: ${this.player.score} | Aether Shards: ${this.player.coins} | Kills: ${this.player.kills} | Best Record: Floor ${this.world.bestFloor}`,
       480,
-      290
+      280
     );
 
     ctx.fillStyle = '#00f0ff';
-    ctx.fillText('Press [SPACE] to Play Again or Open Arsenal Forge', 480, 340);
+    ctx.font = 'bold 15px "Courier New", monospace';
+    ctx.fillText(`Press [SPACE] or Click to Ascend to Floor ${this.world.currentFloor + 1}!`, 480, 335);
 
-    if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) {
-      this.restartMission();
+    if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch') || this.input.wasJustPressed('Space')) {
+      const nextFloor = this.world.currentFloor + 1;
+      this.world.loadFloor(nextFloor);
+      this.player.x = 40;
+      this.player.y = 140;
       this.setScreen('PLAYING');
     }
     ctx.restore();
@@ -893,19 +915,28 @@ class ValenApp {
     this.renderGame();
     const ctx = this.ctx;
     ctx.save();
-    ctx.fillStyle = 'rgba(20, 5, 5, 0.85)';
+    ctx.fillStyle = 'rgba(20, 5, 5, 0.88)';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff3344';
-    ctx.font = 'bold 36px "Courier New", monospace';
-    ctx.fillText('HERO FALLEN', 480, 220);
+    ctx.font = 'bold 34px "Courier New", monospace';
+    ctx.fillText('SPIRAL RESONANCE SHATTERED', 480, 210);
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = '14px "Courier New", monospace';
-    ctx.fillText('Press [SPACE] or Click to Respawn with your Upgrades', 480, 270);
+    ctx.font = '15px "Courier New", monospace';
+    ctx.fillText(`CHAMBER DEFEAT AT FLOOR ${this.world.currentFloor} • ALL-TIME RECORD: FLOOR ${this.world.bestFloor}`, 480, 255);
+    ctx.fillText(
+      `Aether Shards Collected: ${this.player.coins} | Hostiles Purged: ${this.player.kills} | Level: ${this.player.level}`,
+      480,
+      285
+    );
 
-    if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) {
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.fillText('Press [SPACE] or Click to Revive with your Upgrades!', 480, 335);
+
+    if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch') || this.input.wasJustPressed('Space')) {
       this.player.hp = this.player.maxHp;
       this.player.energy = this.player.maxEnergy;
       this.setScreen('PLAYING');
@@ -915,5 +946,5 @@ class ValenApp {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  new ValenApp();
+  new SpiralApp();
 });

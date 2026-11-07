@@ -49,7 +49,7 @@ function wounds(a) {
   return w;
 }
 
-// a drop in flight: a bead with a tail when it is fast (Hugo's drop)
+// a drop in flight: a bead with a tail when it is fast (fluid drop)
 function drop(p, C, x, y, v, s) {
   const tail = Math.min(5, v * 0.012);
   if (tail >= 1) p.line(x, y - tail, x, y - 1, s >= 2 ? C[3] : C[2]);
