@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TINY GLYPHS — Open-World ASCII Action Adventure</title>
+  <title>TINY GLYPHS — 2D ASCII Action Platformer</title>
   <style>
     * {
       box-sizing: border-box;
@@ -13,16 +13,16 @@
     }
 
     body {
-      background-color: #050505;
+      background-color: #060606;
       color: #ffffff;
       font-family: 'Courier New', Courier, monospace;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       overflow-x: hidden;
-      padding: 16px;
+      padding: 16px 8px;
     }
 
     header {
@@ -31,38 +31,69 @@
     }
 
     h1 {
-      font-size: 26px;
-      letter-spacing: 4px;
+      font-size: 24px;
+      letter-spacing: 5px;
       text-transform: uppercase;
       margin-bottom: 4px;
-      text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
     }
 
     .tagline {
-      font-size: 13px;
+      font-size: 12px;
       color: #888888;
       letter-spacing: 2px;
     }
 
+    /* Top Navigation Tabs */
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 960px;
+      width: 100%;
+    }
+
+    .nav-tab {
+      background: #111111;
+      color: #aaaaaa;
+      border: 1px solid #333333;
+      padding: 8px 14px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+    }
+
+    .nav-tab:hover, .nav-tab:focus {
+      background: #222222;
+      color: #ffffff;
+      border-color: #ffffff;
+    }
+
     #gameContainer {
       position: relative;
-      border: 3px solid #ffffff;
-      box-shadow: 0 0 24px rgba(255, 255, 255, 0.15);
-      background-color: #0a0a0a;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 24px rgba(255, 255, 255, 0.12);
+      background-color: #050505;
       line-height: 0;
+      max-width: 960px;
+      width: 100%;
     }
 
     #gameCanvas {
       display: block;
-      width: 960px;
-      height: 576px;
-      max-width: 95vw;
-      max-height: 70vh;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
       image-rendering: pixelated;
       cursor: crosshair;
     }
 
-    /* Optional CRT scanline & curvature effect */
+    /* CRT scanline overlay */
     #gameContainer.crt::before {
       content: " ";
       display: block;
@@ -75,56 +106,21 @@
       pointer-events: none;
     }
 
-    .toolbar {
-      display: flex;
-      gap: 12px;
-      margin-top: 14px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    button, .link-btn {
-      background: #0a0a0a;
-      color: #ffffff;
-      border: 1px solid #ffffff;
-      padding: 8px 16px;
-      font-family: inherit;
-      font-size: 12px;
-      letter-spacing: 1px;
-      cursor: pointer;
-      transition: all 0.15s ease-in-out;
-      text-decoration: none;
-      display: inline-block;
-    }
-
-    button:hover, .link-btn:hover {
-      background: #ffffff;
-      color: #000000;
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-    }
-
-    .instructions {
-      margin-top: 16px;
-      text-align: center;
-      font-size: 12px;
-      color: #777777;
-      line-height: 1.6;
-      max-width: 800px;
-    }
-
-    .instructions strong {
-      color: #ffffff;
-    }
-
+    /* Mobile virtual touch controls (shown only on touch devices) */
     .mobile-controls {
-      display: flex;
+      display: none;
       justify-content: space-between;
       width: 100%;
       max-width: 960px;
-      margin-top: 14px;
+      margin-top: 12px;
       gap: 12px;
-      user-select: none;
       touch-action: manipulation;
+    }
+
+    @media (hover: none) and (pointer: coarse), (max-width: 768px) {
+      .mobile-controls {
+        display: flex;
+      }
     }
 
     .dpad, .action-pad {
@@ -133,11 +129,11 @@
     }
 
     .touch-btn {
-      background: #0d0d0d;
+      background: #111111;
       color: #ffffff;
       border: 1px solid #ffffff;
-      padding: 12px 18px;
-      font-size: 14px;
+      padding: 12px 16px;
+      font-size: 13px;
       font-family: inherit;
       font-weight: bold;
       cursor: pointer;
@@ -148,8 +144,53 @@
       background: #ffffff;
       color: #000000;
     }
+
+    /* Bottom Toolbar */
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 960px;
+      width: 100%;
+    }
+
+    .tool-btn {
+      background: #0d0d0d;
+      color: #ffffff;
+      border: 1px solid #555555;
+      padding: 6px 14px;
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+    }
+
+    .tool-btn:hover {
+      border-color: #ffffff;
+      background: #ffffff;
+      color: #000000;
+    }
+
+    /* Quick Guide Footer */
+    .footer-guide {
+      margin-top: 14px;
+      text-align: center;
+      font-size: 11px;
+      color: #666666;
+      line-height: 1.6;
+      max-width: 960px;
+      border-top: 1px solid #222222;
+      padding-top: 10px;
+    }
+
+    .footer-guide strong {
+      color: #cccccc;
+    }
   </style>
-  <script type="module" crossorigin src="./assets/index-BLpvN2ui.js"></script>
+  <script type="module" crossorigin src="./assets/index-DH47ppLD.js"></script>
 </head>
 <body>
   <header>
@@ -157,10 +198,21 @@
     <div class="tagline">Pure Monospace ASCII 2D Action Platformer</div>
   </header>
 
+  <!-- Clean Top Navigation Tabs -->
+  <div class="nav-tabs">
+    <button class="nav-tab" id="tabMenu">🏠 MAIN MENU</button>
+    <button class="nav-tab" id="tabPlay">▶ PLAY MISSION</button>
+    <button class="nav-tab" id="tabGuide">📖 HOW TO PLAY</button>
+    <button class="nav-tab" id="tabVfx">🧪 VFX ARCHIVE</button>
+    <button class="nav-tab" id="tabSettings">⚙️ SETTINGS</button>
+  </div>
+
+  <!-- Primary Canvas Container -->
   <div id="gameContainer">
     <canvas id="gameCanvas"></canvas>
   </div>
 
+  <!-- Responsive Mobile Touch Pad -->
   <div class="mobile-controls">
     <div class="dpad">
       <button class="touch-btn" id="btnLeft">◀ LEFT</button>
@@ -173,25 +225,23 @@
     </div>
   </div>
 
+  <!-- Bottom Utility Toolbar -->
   <div class="toolbar">
-    <button id="guideBtn">HOW TO PLAY (?)</button>
-    <button id="themeBtn">THEME: B&W (T)</button>
-    <button id="bgmBtn">MUSIC: ON (B)</button>
-    <button id="muteBtn">SFX: ON (M)</button>
-    <button id="crtBtn">CRT EFFECT: OFF</button>
+    <button class="tool-btn" id="themeBtn">THEME: B&W (T)</button>
+    <button class="tool-btn" id="bgmBtn">MUSIC: ON (B)</button>
+    <button class="tool-btn" id="muteBtn">SFX: ON (M)</button>
+    <button class="tool-btn" id="crtBtn">CRT: OFF</button>
   </div>
 
-  <div class="instructions">
-    <strong>[ CONTROLS ]</strong> 
-    <strong>A / D</strong> or <strong>Arrows</strong>: Run | 
-    <strong>W / Space</strong>: Jump (supports <strong>Double Jump!</strong>) | 
-    <strong>J / Left Click</strong>: Straight Punch | 
-    <strong>K / E / Right Click</strong>: Poison Flask (Sprite Fusion VFX) | 
-    <strong>R</strong>: Restart
-    <br>
-    Run through the cyberpunk ruins, double-jump across girders, unleash punch combos, and dissolve mutants in toxic gas clouds!
+  <!-- Footer Quick Guide -->
+  <div class="footer-guide">
+    <strong>[ CONTROLS ]</strong>
+    <strong>A / D</strong> or <strong>Arrows</strong>: Run |
+    <strong>W / Space</strong>: Jump (Double Jump!) |
+    <strong>J / Click</strong>: Straight Punch |
+    <strong>K / E</strong>: Poison Flask |
+    <strong>ESC</strong>: Pause & Menu
   </div>
 
 </body>
 </html>
-

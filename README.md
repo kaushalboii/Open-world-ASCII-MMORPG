@@ -1,59 +1,66 @@
 # † TINY GLYPHS: PURE ASCII ACTION PLATFORMER †
-> **2D Side-Scrolling Action Platformer** rendered entirely in a **Pure Monospace ASCII Character Matrix** (100x34 grid), featuring an animated multi-line ASCII Cyber Ninja, straight punch combos, flowing scarf physics, double-jumping, Sprite Fusion poison VFX, and live 8-bit procedural synth audio!
+> **2D Side-Scrolling Action Platformer** with dedicated pages, clean navigation flow, multi-line animated Cyber Ninja, Sprite Fusion poison VFX, and procedural 8-bit synth audio!
 
 ![Aesthetic](https://img.shields.io/badge/Aesthetic-Pure%20ASCII%20Character%20Matrix-white?style=for-the-badge)
-![Perspective](https://img.shields.io/badge/View-2D%20Side--Scroller%20Action-blue?style=for-the-badge)
+![UI](https://img.shields.io/badge/Navigation-Structured%20Pages%20Flow-blue?style=for-the-badge)
 ![Deploy](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen?style=for-the-badge)
 
 ---
 
-## 🎮 The Pure ASCII Experience
+## 🧭 Structured Page Navigation Flow
 
-Every visual in **Tiny Glyphs** is rendered using real, discrete typographical ASCII values on a 100x34 monospace matrix:
+No more overlapping boxes or text clutter! The game features dedicated, clean pages accessible via the top navigation tabs or keyboard shortcuts:
+
+1. **🏠 Page 1: Main Menu & Mission Hub**:
+   - Grand ASCII title logo, mission briefing, and 1-click launch.
+2. **▶ Page 2: Sector 4 Gameplay**:
+   - Clean, unobstructed 2D action platformer with clean top HUD and bottom status prompt.
+3. **📖 Page 3: How To Play & Combat Guide**:
+   - Full-page guide detailing running, double-jumping, punch combos, and poison flask tactics.
+4. **🧪 Page 4: Sprite Fusion VFX & Character Archive**:
+   - Visual ASCII showcase of the Cyber Ninja, straight punch animation, and the expanding poison gas cloud VFX.
+5. **⚙️ Page 5: Settings & Themes**:
+   - Live theme preview (Monochrome B&W, Matrix Green, Vintage Amber) and audio controls.
+6. **⏸️ Page 6: Pause Menu (`ESC`)**:
+   - Resume mission, restart, or return to the main menu without losing state.
+7. **★ Page 7: Victory Screen**:
+   - Appears when Warlord Goliath is defeated, displaying your combat rank and final score!
+8. **† Page 8: Game Over Screen**:
+   - Clean respawn screen with your run statistics.
+
+---
+
+## 🥷 The Animated ASCII Cyber Ninja
 
 ```text
        .---.       
       |[===]|======(O)*   <-- Cyber Visor & Straight Punch Strike!
       |/███\|             <-- Bodysuit Armor & Trailing Scarf ~ ≈
-       \▓▓▓/              <-- Belt & Combat Sash
-       /   \              <-- Athletic Running Legs
+       \▓▓▓/              <-- Combat Sash
+       /   \              <-- Athletic Legs
       /_   _\             <-- Combat Boots
 ════════════════════════════════════════════════════════════════════
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### ✨ Features:
-1. **Multi-Line Animated ASCII Cyber Ninja**:
-   - **Straight Punch Strike**: Straight punch combo (`======(O)*`) matching the Sprite Fusion fighter animation!
-   - **Dynamic 6-Frame Run Cycle**: Multi-line running legs stride with animated arm movement.
-   - **Breathing Idle Stance**: Subtle rhythmic ASCII chest expansion with trailing scarf waves (`~`, `≈`, `·`).
-   - **Double Jump**: Mid-air tucked jump pose (`< >`) with particle thrust.
-2. **2D ASCII Platform World**:
-   - Industrial ledges (`╔════╗`), rooftop scaffoldings, and neon signs (`< [ NEON APOCALYPSE ] >`).
-   - Toxic acid sludge pits on the floor (`≈ ~ ≈`).
-3. **Sprite Fusion Poison VFX in ASCII**:
-   - Throw **Poison Flasks** `(o)` that shatter on platforms.
-   - Spawns an expanding swirling **ASCII Poison Gas Cloud** (`░ ▒ ▓ % & # @`) that applies continuous damage-over-time (DoT) to any mutant caught inside!
-4. **Animated ASCII Enemies**:
-   - **Cyber Mutants (`<[X X]>`)**: Ground swarming enemies that sprint towards you.
-   - **Hover Drones (`<-( O )->`)**: Flying sentries that shoot targeted laser bolts `───*`.
-   - **Cyber Warlord Goliath Boss (`[ ██W██ ]`)**: Multi-row end-stage boss with titan cleaves, plasma volleys, and health bar!
-5. **Live 8-Bit Web Audio Synthesizer**:
-   - Chiptune cyberpunk background music loop (A-minor bassline + drums) toggleable with `B`.
-   - Procedural SFX: punch impacts, double jump whooshes, enemy hit sounds, and victory fanfares.
+- **Straight Punch Strike (`J` / Click)**: Rapid-fire martial arts strike matching the Sprite Fusion fighter.
+- **6-Frame Dynamic Run Cycle (`A` / `D`)**: Multi-line running legs stride with animated torso and scarf trailing in the wind.
+- **Double Jump (`W` / `Space`)**: Jump and press again in mid-air to double jump across hazardous acid pits!
+- **Sprite Fusion Poison VFX (`K` / `E`)**: Shatters a toxic flask on the floor, spawning an expanding billowing ASCII poison gas cloud (`░▒▓%&#@`) that dissolves mutants with damage-over-time ticks!
 
 ---
 
 ## 🕹️ Controls
 
-| Action | Keyboard / Mouse |
+| Action | Control |
 | :--- | :--- |
 | **Run Left / Right** | `A` / `D` or Arrow Keys |
 | **Jump** | `W` / `Space` (press again in midair for **Double Jump!**) |
 | **Straight Punch** | `J` or **Left Mouse Click** |
 | **Throw Poison Flask** | `K`, `E`, or **Right Mouse Click** |
-| **Toggle Music** | `B` (or on-screen button) |
-| **Restart** | `R` |
+| **Pause / Menu** | `ESC` |
+| **Toggle Music** | `B` (or top tab) |
+| **Cycle Theme** | `T` (or top tab) |
 | **Mute SFX** | `M` |
 
 ---
