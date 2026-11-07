@@ -1,49 +1,77 @@
-// Main Entry Point for Tiny Glyphs
-// Black & White Open-World ASCII Action Adventure
+// 2D Side-Scrolling ASCII Action Platformer
+// Features animated Cyber Ninja, straight punches, double jump, Sprite Fusion poison VFX, and Warlord Boss
 
 import { Input } from './engine/Input.js';
 import { Camera } from './engine/Camera.js';
-import { Renderer } from './engine/Renderer.js';
-import { WorldMap, TILE_SIZE } from './world/WorldMap.js';
-import { Player } from './entities/Player.js';
-import { EntityManager } from './entities/EntityManager.js';
+import { PlatformRenderer } from './engine/PlatformRenderer.js';
+import { PlatformLevel } from './world/PlatformLevel.js';
+import { PlatformPlayer } from './entities/PlatformPlayer.js';
+import { PlatformEnemy } from './entities/PlatformEnemy.js';
+import { ProjectileManager } from './vfx/PlatformVFX.js';
 import { ParticleEngine } from './vfx/ParticleEngine.js';
 import { DamageTextManager } from './combat/DamageText.js';
-import { MiniMap } from './ui/MiniMap.js';
-import { DialogueBox } from './ui/DialogueBox.js';
 import { soundSynth } from './audio/SoundSynth.js';
 
 class Game {
   constructor() {
     this.canvas = document.getElementById('gameCanvas');
-    this.renderer = new Renderer(this.canvas);
+    this.renderer = new PlatformRenderer(this.canvas);
     this.camera = new Camera(this.renderer.width, this.renderer.height);
     this.input = new Input(this.canvas);
 
     this.particles = new ParticleEngine();
     this.damageText = new DamageTextManager();
-    this.worldMap = new WorldMap(110, 80);
-    this.miniMap = new MiniMap(this.worldMap);
-    this.dialogueBox = new DialogueBox();
+    this.projectiles = new ProjectileManager();
 
-    // Spawn player in the central courtyard near the road
-    this.spawnPlayerX = 50 * TILE_SIZE;
-    this.spawnPlayerY = 40 * TILE_SIZE;
-    this.player = new Player(this.spawnPlayerX, this.spawnPlayerY);
+    this.level = new PlatformLevel(3200, 600);
+    this.player = new PlatformPlayer(100, 480);
 
-    this.entityManager = new EntityManager();
-    this.entityManager.initWorldEntities(this.worldMap);
+    this.enemies = [];
+    this.initEnemies();
+
+    // Wire attack check in level to damage enemies
+    this.level.checkPlayerAttack = (hitX, hitY, radius, damage, player, damageText, particles, camera) => {
+      for (const e of this.enemies) {
+        if (!e.isDead && Math.hypot(e.x - hitX, e.y - hitY) <= radius + e.width / 2) {
+          e.takeDamage(damage, damageText, particles, camera);
+          if (e.isDead) player.kills++;
+        }
+      }
+    };
 
     this.lastTime = performance.now();
-    this.isRunning = true;
-
     this.initUI();
+
     this.loop = this.loop.bind(this);
     requestAnimationFrame(this.loop);
   }
 
+  initEnemies() {
+    this.enemies = [
+      // Street & Lower Platform Mutants
+      new PlatformEnemy(420, 500, 'mutant'),
+      new PlatformEnemy(700, 500, 'mutant'),
+      new PlatformEnemy(440, 350, 'drone'),
+      new PlatformEnemy(600, 220, 'mutant'),
+
+      // Industrial Zone
+      new PlatformEnemy(1100, 500, 'mutant'),
+      new PlatformEnemy(1300, 330, 'drone'),
+      new PlatformEnemy(1500, 190, 'drone'),
+      new PlatformEnemy(1720, 300, 'mutant'),
+
+      // High-Rise Ruins
+      new PlatformEnemy(2100, 410, 'mutant'),
+      new PlatformEnemy(2300, 340, 'drone'),
+      new PlatformEnemy(2450, 200, 'drone'),
+      new PlatformEnemy(2700, 320, 'mutant'),
+
+      // End-Stage Boss: Cyber Warlord Goliath
+      new PlatformEnemy(2980, 460, 'warlord')
+    ];
+  }
+
   initUI() {
-    // Audio un-mute on initial user click
     const startAudio = () => {
       soundSynth.init();
       window.removeEventListener('click', startAudio);
@@ -52,7 +80,6 @@ class Game {
     window.addEventListener('click', startAudio);
     window.addEventListener('keydown', startAudio);
 
-    // UI Mute Button
     const muteBtn = document.getElementById('muteBtn');
     if (muteBtn) {
       muteBtn.addEventListener('click', () => {
@@ -61,7 +88,6 @@ class Game {
       });
     }
 
-    // CRT Scanline Toggle
     const crtBtn = document.getElementById('crtBtn');
     const container = document.getElementById('gameContainer');
     if (crtBtn && container) {
@@ -73,88 +99,94 @@ class Game {
   }
 
   restart() {
-    this.player = new Player(this.spawnPlayerX, this.spawnPlayerY);
-    this.entityManager = new EntityManager();
-    this.entityManager.initWorldEntities(this.worldMap);
+    this.player = new PlatformPlayer(100, 480);
+    this.projectiles = new ProjectileManager();
     this.particles = new ParticleEngine();
     this.damageText = new DamageTextManager();
-    this.camera.x = this.spawnPlayerX - this.renderer.width / 2;
-    this.camera.y = this.spawnPlayerY - this.renderer.height / 2;
-    this.renderer.triggerInvert(0.12);
+    this.initEnemies();
   }
 
   loop(currentTime) {
     const dt = Math.min((currentTime - this.lastTime) / 1000, 0.1);
     this.lastTime = currentTime;
 
-    // Handle restart
     if (this.input.justPressed.restart && this.player.isDead) {
       this.restart();
     }
 
-    // Handle mute shortcut
     if (this.input.justPressed.mute) {
       const isMuted = soundSynth.toggleMute();
       const muteBtn = document.getElementById('muteBtn');
       if (muteBtn) muteBtn.textContent = isMuted ? 'UNMUTE AUDIO' : 'MUTE AUDIO';
     }
 
-    // Handle NPC interaction (E key or Click when near NPC)
-    if (!this.dialogueBox.isOpen && (this.input.keys.block || this.input.justPressed.slash)) {
-      for (const npc of this.entityManager.npcs) {
-        if (Math.hypot(this.player.x - npc.x, this.player.y - npc.y) <= npc.promptDistance) {
-          npc.interact(this.player, this.dialogueBox, this.damageText);
-          break;
-        }
+    const spawnProj = (x, y, vx, vy, type) => {
+      this.projectiles.spawn(x, y, vx, vy, type);
+    };
+
+    // 1. Update Player
+    this.player.update(dt, this.input, this.level, this.particles, this.damageText, this.camera, spawnProj);
+
+    // 2. Update Enemies
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      const e = this.enemies[i];
+      e.update(dt, this.player, this.level, this.particles, this.damageText, this.camera, spawnProj);
+      if (e.isDead && e.type !== 'warlord') {
+        this.enemies.splice(i, 1);
       }
     }
 
-    // Update Dialogue Box if active
-    if (this.dialogueBox.isOpen) {
-      this.dialogueBox.update(dt, this.input);
-    }
+    // 3. Update Projectiles & Poison Clouds
+    this.projectiles.update(dt, this.level, this.player, this.enemies, this.damageText, this.particles, this.camera);
 
-    // Update Game Systems
-    this.worldMap.update(dt);
-    if (!this.dialogueBox.isOpen) {
-      this.player.update(dt, this.input, this.worldMap, this.camera, this.particles, this.damageText);
-    }
-    this.entityManager.update(dt, this.player, this.worldMap, this.camera, this.particles, this.damageText);
+    // 4. Update Particle & Combat Text
     this.particles.update(dt);
     this.damageText.update(dt);
 
-    // Camera follow player & clamp
-    this.camera.follow(this.player.x, this.player.y, dt);
-    this.camera.clamp(this.worldMap.worldWidth, this.worldMap.worldHeight);
+    // 5. Update Camera (Smooth Horizontal Follow with Vertical Lookahead)
+    const targetCamX = this.player.x;
+    const targetCamY = Math.min(this.player.y, 400);
+    this.camera.follow(targetCamX, targetCamY, dt, 5.0);
+    this.camera.clamp(this.level.width, this.level.height);
 
-    // Clear input single-press edge triggers
+    // 6. Check Pickup Collection
+    for (let i = this.level.collectibles.length - 1; i >= 0; i--) {
+      const c = this.level.collectibles[i];
+      if (Math.hypot(this.player.x - c.x, this.player.y - c.y) < 24) {
+        if (c.type === 'gold') {
+          this.player.score += 50;
+          this.damageText.add(c.x, c.y, '+50 PTS', 'gold');
+          soundSynth.playCoin();
+        } else if (c.type === 'flask') {
+          this.player.flasks++;
+          this.damageText.add(c.x, c.y, '+1 FLASK', 'crit');
+          soundSynth.playClank();
+        }
+        this.particles.emitSparks(c.x, c.y, 8, ['*', '+']);
+        this.level.collectibles.splice(i, 1);
+      }
+    }
+
     this.input.update();
 
-    // Render Frame
+    // 7. Render Everything
     this.renderer.render(
-      this.worldMap,
+      this.level,
       this.player,
-      this.entityManager,
+      this.enemies,
+      this.projectiles,
       this.particles,
       this.damageText,
       this.camera,
-      dt,
-      this.miniMap
+      dt
     );
-
-    // Render Dialogue Overlay
-    if (this.dialogueBox.isOpen) {
-      this.dialogueBox.render(this.renderer.ctx, this.renderer.width, this.renderer.height);
-    }
 
     requestAnimationFrame(this.loop);
   }
 }
 
-// Start Game on DOM Load
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
     new Game();
   });
 }
-

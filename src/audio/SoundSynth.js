@@ -224,6 +224,57 @@ class SoundSynth {
     noise.stop(this.ctx.currentTime + duration);
   }
 
+  playBossRoar() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(80, t);
+    osc.frequency.linearRampToValueAtTime(130, t + 0.15);
+    osc.frequency.exponentialRampToValueAtTime(45, t + 0.6);
+
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.6);
+
+    this.playNoise(0.5, 0.3, 300);
+  }
+
+  playVictory() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5 arpeggio
+    notes.forEach((freq, i) => {
+      const t = this.ctx.currentTime + i * 0.12;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + (i === 3 ? 0.6 : 0.25));
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(t);
+      osc.stop(t + (i === 3 ? 0.6 : 0.25));
+    });
+  }
+
   toggleMute() {
     this.muted = !this.muted;
     return this.muted;

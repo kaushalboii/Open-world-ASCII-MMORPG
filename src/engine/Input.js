@@ -20,6 +20,7 @@ export class Input {
     this.justPressed = {
       slash: false,
       dash: false,
+      jump: false,
       restart: false,
       mute: false
     };
@@ -46,6 +47,7 @@ export class Input {
       switch (e.code) {
         case 'KeyW':
         case 'ArrowUp':
+          if (!this.keys.up) this.justPressed.jump = true;
           this.keys.up = true;
           break;
         case 'KeyS':
@@ -61,6 +63,9 @@ export class Input {
           this.keys.right = true;
           break;
         case 'Space':
+          if (!this.keys.slash) this.justPressed.jump = true;
+          this.keys.slash = true;
+          break;
         case 'KeyJ':
           if (!this.keys.slash) this.justPressed.slash = true;
           this.keys.slash = true;
@@ -68,6 +73,7 @@ export class Input {
         case 'ShiftLeft':
         case 'ShiftRight':
         case 'KeyK':
+        case 'KeyE':
           if (!this.keys.dash) this.justPressed.dash = true;
           this.keys.dash = true;
           break;
@@ -153,6 +159,7 @@ export class Input {
   update() {
     this.justPressed.slash = false;
     this.justPressed.dash = false;
+    this.justPressed.jump = false;
     this.justPressed.restart = false;
     this.justPressed.mute = false;
   }

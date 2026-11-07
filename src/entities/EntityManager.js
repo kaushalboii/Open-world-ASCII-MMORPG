@@ -5,6 +5,7 @@ import { Enemy } from './Enemy.js';
 import { Sheep } from '../world/Sheep.js';
 import { NPC } from './NPC.js';
 import { Destructible } from '../world/Destructibles.js';
+import { Boss } from './Boss.js';
 import { TileType, TILE_SIZE } from '../world/WorldMap.js';
 
 export class EntityManager {
@@ -13,6 +14,7 @@ export class EntityManager {
     this.sheep = [];
     this.npcs = [];
     this.destructibles = [];
+    this.boss = null;
     this.pickups = []; // { x, y, type: 'gold'|'heart', value, glyph, age }
     this.respawnTimer = 0;
   }

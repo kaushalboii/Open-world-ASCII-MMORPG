@@ -1,77 +1,61 @@
-# † TINY GLYPHS †
-> **An Open-World ASCII Action Adventure** inspired by *Tiny Swords*, rendered in high-contrast Black & White.
+# † TINY GLYPHS: CYBER ASCENSION †
+> **2D Side-Scrolling ASCII Action Platformer** featuring an animated Cyber Ninja, straight punches, flowing scarf physics, double-jumping, Sprite Fusion poison VFX, and cyberpunk skyline ruins.
 
-![Tiny Glyphs Preview](https://img.shields.io/badge/Aesthetic-1--Bit%20Monochrome%20ASCII-white?style=for-the-badge&logo=gnubash)
-![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
-![Deploy](https://img.shields.io/badge/GitHub%20Pages-Ready-brightgreen?style=for-the-badge)
-
----
-
-## ⚔️ The World of Tiny Glyphs
-
-Explore an open-world medieval fantasy island built entirely out of animated ASCII/ANSI glyphs in pure high-contrast Black & White:
-
-- **The Royal Castle Fortress**: Stone ramparts, battlements, towers, and the grand throne keep.
-- **Village Highlands**: Cottages with smoking chimneys, cobblestone paths, and water bridges.
-- **Coastal Cliffs & Ocean**: Animated shimmering waves (`~`, `≈`, `∿`) and sandy shorelines.
-- **Wildlife**: Cute grazing sheep `{m}` that wander, munch grass, bleat, and flee from sword swings.
-- **Enemies**: Rogue Knights (`k`) and Spearmen (`p`) that patrol the kingdom and attack on sight.
+![Aesthetic](https://img.shields.io/badge/Aesthetic-1--Bit%20Monochrome%20ASCII-white?style=for-the-badge)
+![Perspective](https://img.shields.io/badge/View-2D%20Side--Scroller%20Action-blue?style=for-the-badge)
+![Deploy](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen?style=for-the-badge)
 
 ---
 
-## 🎮 Controls
+## 🎮 The Game
 
-| Action | Key / Control |
+Inspired directly by the Sprite Fusion 2D action fighter aesthetics, **Tiny Glyphs** is a high-speed 2D side-scrolling action platformer built completely from animated ASCII glyphs:
+
+```text
+       [■■]       <-- Glowing Visor / Helmet
+     ~|██|==O     <-- Flowing Scarf & Straight Punch!
+       /  >       <-- Running Legs in Motion
+════════════════════════════════════════════════════════════
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+- **Animated Character Sprite**: Multi-row ASCII character with dynamic running cycle, jumping/falling tucked poses, lunging straight punch combos, and simulated physics scarf particles trailing behind you (`~`, `≈`, `·`).
+- **2D Platformer Physics**: Gravity, solid multi-tier industrial ledges, rooftops, hazardous toxic pits, and double jumping.
+- **Sprite Fusion Poison VFX**: Throw toxic flasks `(o)` that shatter on impact, spawning expanding billowing green/white poison gas clouds (`░ ▒ ▓ % &`) that linger and dissolve enemies with damage-over-time ticks!
+- **Enemies & Epic Boss**:
+  - **Cyber Mutants (`[X]`)**: Ground prowlers that sprint towards you.
+  - **Hover Drones (`<(O)>`)**: Airborne sentries firing targeted laser beams.
+  - **Cyber Warlord Goliath (`[██W██]`)**: Mega boss with titan cleaves, plasma spread, and boss health bar!
+
+---
+
+## 🕹️ Controls
+
+| Action | Control |
 | :--- | :--- |
-| **Move** | `W`, `A`, `S`, `D` or Arrow Keys |
-| **Sword Slash** | `Space` or **Left Mouse Click** |
-| **Dodge Dash** | `Shift` or **Right Mouse Click** |
-| **Shield Block** | `Q` or `E` |
-| **Mute / Unmute** | `M` (or on-screen button) |
-| **Respawn** | `R` |
-
----
-
-## ✨ Features
-
-- **Pure Monochromatic Aesthetics**: High-contrast white (`#FFFFFF`) characters on deep black (`#0A0A0A`), with inverted contrast screen flashes on critical hits and damage.
-- **360° Mouse-Aim & Fluid Combat**: Swing your sword with sweeping crescent slash arcs `) ) )`, deflect spear thrusts with your kite shield `[#]`, and dash with trailing afterimages.
-- **Zero-Dependency 8-Bit Web Audio**: Synthesized sound effects generated live using the Web Audio API — metallic clanks, sword swooshes, footsteps, and sheep bleats.
-- **CRT Scanline Mode**: One-click toggle for authentic retro terminal curvature and scanline overlay.
-- **Automated GitHub Pages Deployment**: Fully automated via GitHub Actions (`.github/workflows/deploy.yml`).
+| **Run Left / Right** | `A` / `D` or Arrow Keys |
+| **Jump** | `W` / `Space` (press again in midair for **Double Jump!**) |
+| **Straight Punch** | `J` or **Left Mouse Click** |
+| **Poison Flask** | `K`, `E`, or **Right Mouse Click** |
+| **Restart** | `R` |
+| **Mute / Unmute** | `M` |
 
 ---
 
 ## 🚀 Running Locally
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Start local development server
 npm run dev
 ```
-
-Visit `http://localhost:3000` in your browser.
-
----
-
-## 🌐 Deploying to GitHub Pages
-
-This repository includes an automated GitHub Actions workflow (`.github/workflows/deploy.yml`).
-
-1. Go to your repository on GitHub: **Settings** > **Pages**.
-2. Under **Build and deployment** > **Source**, select **GitHub Actions**.
-3. Push your changes to `main`:
-   ```bash
-   git add .
-   git commit -m "Deploy Tiny Glyphs"
-   git push origin main
-   ```
-4. GitHub Actions will automatically build and publish your game!
+Open **`http://localhost:3000`** in your browser.
 
 ---
+
+## 🌐 Live GitHub Pages Play
+
+The game is hosted live at:
+👉 **[https://kaushalboii.github.io/Open-world-ASCII-MMORPG/](https://kaushalboii.github.io/Open-world-ASCII-MMORPG/)**
 
 ### License
-MIT License. Created by [Kaushal](https://github.com/kaushalboii).
-
+MIT License. Created by [kaushalboii](https://github.com/kaushalboii).
