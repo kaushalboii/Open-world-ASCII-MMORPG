@@ -1,4 +1,4 @@
-// Animated ASCII Cyber Ninja Hero
+// Animated ASCII Martial Hero (Valen the Glyphwarden)
 // Handcrafted multi-line ASCII art frames for Idle, 6-frame Run, Straight Punch, Jump, and Poison Flask throw
 
 import { soundSynth } from '../audio/SoundSynth.js';
@@ -77,7 +77,7 @@ export class AsciiNinja {
     this.vy += this.gravity * dt;
     if (this.vy > 32) this.vy = 32;
 
-    // 4. Combat: Straight Punch (from Sprite Fusion screenshot!)
+    // Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
     if (this.attackTimer > 0) {
       this.attackTimer -= dt;
       if (this.attackTimer <= 0) {
@@ -100,7 +100,7 @@ export class AsciiNinja {
       world.checkMeleeHit(punchX, punchY, 8, 30, this, damageText, particles);
     }
 
-    // 5. Secondary: Throw Poison Flask (Sprite Fusion Poison VFX)
+    // Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
     if (input.justPressed.dash && this.flasks > 0) {
       this.flasks--;
       soundSynth.playSwordSlash();
@@ -185,7 +185,7 @@ export class AsciiNinja {
 
   getCurrentFrames() {
     if (this.state === 'PUNCH') {
-      // Straight Punch Animation (matches Sprite Fusion screenshot!)
+      // Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
       return [
         '   .---.       ',
         '  |[===]|======(O)*',

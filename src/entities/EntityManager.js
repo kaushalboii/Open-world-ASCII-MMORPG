@@ -1,4 +1,4 @@
-// Entity Manager for Tiny Glyphs
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 // Manages Rogue Knights, Spearmen, Grazing Sheep, and Loot Pickups
 
 import { Enemy } from './Enemy.js';

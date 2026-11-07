@@ -1,17 +1,18 @@
-// Main Orchestrator for Cyber Marino: Run & Gun Hunter
-// Features Weapon Evolution (Knife -> Sword -> Blaster Gun -> Rocket Launcher -> Lightning),
-// Mario-style Enemy Stomping & Star Power, Bouncy Loot Drops, Upgrade Shop, and 244-effect VFX Studio!
+// Main Orchestrator for Valen: Chronicles of Aetheria
+// Features The 21 Primal Seals, Narrative NPC Dialogues, Weapon Evolution (Dagger -> Broadsword -> Blaster -> Mortar -> Lightning),
+// Aerocast Dropkick Stomps, Aether Surge, Destructibles & Sanctuary Sheep, Upgrade Forge, 3D IK Rig, and 244-effect VFX Studio!
 
-import { PixelPlayer } from './pixelfx/game/PixelPlayer.js';
-import { PixelWorld } from './pixelfx/game/PixelWorld.js';
-import { UpgradeShop } from './pixelfx/game/UpgradeShop.js';
-import { StudioManager } from './pixelfx/studio/StudioManager.js';
-import { RigExplorer } from './pixelfx/studio/RigExplorer.js';
+import { PixelPlayer } from './pixeleffects/game/PixelPlayer.js';
+import { PixelWorld } from './pixeleffects/game/PixelWorld.js';
+import { UpgradeShop } from './pixeleffects/game/UpgradeShop.js';
+import { StoryCodex } from './pixeleffects/game/StoryCodex.js';
+import { StudioManager } from './pixeleffects/studio/StudioManager.js';
+import { RigExplorer } from './pixeleffects/studio/RigExplorer.js';
 import { Input } from './engine/Input.js';
 import { soundSynth } from './audio/SoundSynth.js';
-import { createFrame, clearFrame, composite } from './pixelfx/core/index.js';
+import { createFrame, clearFrame, composite } from './pixeleffects/core/index.js';
 
-class CyberMarinoApp {
+class ValenApp {
   constructor() {
     this.canvas = document.getElementById('gameCanvas');
     this.ctx = this.canvas.getContext('2d', { alpha: false });
@@ -21,9 +22,9 @@ class CyberMarinoApp {
 
     this.input = new Input(this.canvas);
 
-    // Screen States: 'MENU', 'PLAYING', 'UPGRADE_SHOP', 'VFX_STUDIO', 'PIXEL_RIG', 'GUIDE', 'SETTINGS', 'PAUSED', 'VICTORY', 'GAMEOVER'
+    // Screen States: 'MENU', 'PLAYING', 'STORY_CODEX', 'UPGRADE_SHOP', 'VFX_STUDIO', 'PIXEL_RIG', 'GUIDE', 'SETTINGS', 'PAUSED', 'VICTORY', 'GAMEOVER'
     this.screen = 'MENU';
-    this.theme = 'bw'; // 'bw' (Monochrome B&W), 'color' (Cyber Neon), 'green' (Phosphor Matrix)
+    this.theme = 'bw'; // 'bw' (Monochrome), 'color' (Vibrant Aether), 'green' (Verdant Matrix)
     this.crt = false;
 
     // Game Core
@@ -39,6 +40,7 @@ class CyberMarinoApp {
     this.player = new PixelPlayer(60, 148);
     this.world = new PixelWorld(this.stageW, this.stageH);
     this.shop = new UpgradeShop();
+    this.codex = new StoryCodex();
 
     // Studio & Rig Modules
     this.studioOffscreen = document.createElement('canvas');
@@ -55,7 +57,7 @@ class CyberMarinoApp {
     this.initStudioDOM();
     this.initRigDOM();
 
-    // Handle clicks inside canvas (e.g. for Upgrade Shop)
+    // Handle clicks inside canvas (e.g. for Upgrade Shop & Codex)
     this.canvas.addEventListener('click', (e) => {
       const rect = this.canvas.getBoundingClientRect();
       const mouseX = (e.clientX - rect.left) * (this.canvas.width / rect.width);
@@ -63,6 +65,14 @@ class CyberMarinoApp {
 
       if (this.screen === 'UPGRADE_SHOP') {
         this.shop.handleClick(mouseX, mouseY, this.player, soundSynth);
+      } else if (this.screen === 'STORY_CODEX') {
+        this.codex.handleClick(mouseX, mouseY, (chapter) => {
+          this.world.loadSector(chapter);
+          this.setScreen('PLAYING');
+        });
+      } else if (this.screen === 'PIXEL_RIG') {
+        this.rigExplorer.handleClick(mouseX, mouseY, this.canvas.width, this.canvas.height);
+        if (this.syncRigUI) this.syncRigUI();
       }
     });
 
@@ -75,6 +85,7 @@ class CyberMarinoApp {
     const tabMap = {
       MENU: 'tabMenu',
       PLAYING: 'tabPlay',
+      STORY_CODEX: 'tabStory',
       UPGRADE_SHOP: 'tabShop',
       VFX_STUDIO: 'tabVfx',
       PIXEL_RIG: 'tabRig',
@@ -103,6 +114,8 @@ class CyberMarinoApp {
       if (this.player.hp <= 0) this.restartMission();
       this.setScreen('PLAYING');
     });
+    const tabStory = document.getElementById('tabStory');
+    if (tabStory) tabStory.addEventListener('click', () => this.setScreen('STORY_CODEX'));
     document.getElementById('tabShop').addEventListener('click', () => this.setScreen('UPGRADE_SHOP'));
     document.getElementById('tabVfx').addEventListener('click', () => this.setScreen('VFX_STUDIO'));
     document.getElementById('tabRig').addEventListener('click', () => this.setScreen('PIXEL_RIG'));
@@ -235,7 +248,7 @@ class CyberMarinoApp {
       const fx = this.studio.activeEffect;
       if (!fx) return;
       const m = fx.meta;
-      metaDesc.innerHTML = `<strong>${fx.name}</strong> [${fx.cat}] &bull; Duration: ${m.duration}s &bull; FPS: ${m.fps} &bull; Size: ${m.size[0]}x${m.size[1]}<br>${m.desc || 'Procedural pixel effect from patch-gg/pixelfx library.'}<br><span style="color:#00ff88">Author/Engine: Hugo Duprez (Sprite Fusion) &bull; Patch &bull; Zero External Assets</span>`;
+      metaDesc.innerHTML = `<strong>${fx.name}</strong> [${fx.cat}] &bull; Duration: ${m.duration}s &bull; FPS: ${m.fps} &bull; Size: ${m.size[0]}x${m.size[1]}<br>${m.desc || 'Procedural pixel animation module.'}<br><span style="color:#00ff88">Engine: Procedural Pixel Effects Engine &bull; Created by Kaushal &bull; Zero External Assets</span>`;
     };
 
     effectSelect.addEventListener('change', (e) => {
@@ -287,6 +300,112 @@ class CyberMarinoApp {
 
   initRigDOM() {
     const rig = this.rigExplorer;
+
+    // Animation State buttons
+    const setAnimBtnActive = (state) => {
+      ['animBtnRun', 'animBtnIdle', 'animBtnJump', 'animBtnAttack'].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.style.borderColor = '#333348';
+          btn.style.color = '#cccccc';
+          btn.style.background = '#101016';
+        }
+      });
+      const activeMap = {
+        RUN: 'animBtnRun',
+        IDLE: 'animBtnIdle',
+        JUMP: 'animBtnJump',
+        ATTACK: 'animBtnAttack',
+      };
+      const activeEl = document.getElementById(activeMap[state]);
+      if (activeEl) {
+        activeEl.style.borderColor = '#00f0ff';
+        activeEl.style.color = '#00f0ff';
+        activeEl.style.background = '#1b2438';
+      }
+      const input = document.getElementById('animMotionInput');
+      if (input) input.value = rig.motionPrompt;
+    };
+
+    document.getElementById('animBtnRun')?.addEventListener('click', () => {
+      rig.setAnimState('RUN');
+      setAnimBtnActive('RUN');
+    });
+    document.getElementById('animBtnIdle')?.addEventListener('click', () => {
+      rig.setAnimState('IDLE');
+      setAnimBtnActive('IDLE');
+    });
+    document.getElementById('animBtnJump')?.addEventListener('click', () => {
+      rig.setAnimState('JUMP');
+      setAnimBtnActive('JUMP');
+    });
+    document.getElementById('animBtnAttack')?.addEventListener('click', () => {
+      rig.setAnimState('ATTACK');
+      setAnimBtnActive('ATTACK');
+    });
+
+    // View mode buttons
+    const setViewModeActive = (mode) => {
+      ['animBtnPixel', 'animBtnAscii', 'animBtnHybrid', 'animBtnBones'].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.style.borderColor = '#333348';
+          btn.style.color = '#cccccc';
+        }
+      });
+      const map = { pixel: 'animBtnPixel', ascii: 'animBtnAscii', hybrid: 'animBtnHybrid', bones: 'animBtnBones' };
+      const el = document.getElementById(map[mode]);
+      if (el) {
+        el.style.borderColor = '#ff2a85';
+        el.style.color = '#ffffff';
+      }
+    };
+
+    document.getElementById('animBtnPixel')?.addEventListener('click', () => { rig.viewMode = 'pixel'; setViewModeActive('pixel'); });
+    document.getElementById('animBtnAscii')?.addEventListener('click', () => { rig.viewMode = 'ascii'; setViewModeActive('ascii'); });
+    document.getElementById('animBtnHybrid')?.addEventListener('click', () => { rig.viewMode = 'hybrid'; setViewModeActive('hybrid'); });
+    document.getElementById('animBtnBones')?.addEventListener('click', () => { rig.viewMode = 'bones'; setViewModeActive('bones'); });
+
+    // Motion Prompt input
+    const motionInput = document.getElementById('animMotionInput');
+    const submitPrompt = () => {
+      if (motionInput && motionInput.value.trim()) {
+        rig.setMotionPrompt(motionInput.value.trim());
+        setAnimBtnActive(rig.animState);
+      }
+    };
+    document.getElementById('animSubmitBtn')?.addEventListener('click', submitPrompt);
+    motionInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitPrompt();
+    });
+
+    // Play/Pause, Speed, Flip
+    const animPlayBtn = document.getElementById('animPlayBtn');
+    animPlayBtn?.addEventListener('click', () => {
+      rig.playing = !rig.playing;
+      animPlayBtn.textContent = rig.playing ? '⏸ PAUSE' : '▶ PLAY';
+    });
+
+    const animSpeedBtn = document.getElementById('animSpeedBtn');
+    animSpeedBtn?.addEventListener('click', () => {
+      const speeds = [0.25, 0.5, 1.0, 2.0];
+      const nextIdx = (speeds.indexOf(rig.speed) + 1) % speeds.length;
+      rig.speed = speeds[nextIdx];
+      animSpeedBtn.textContent = `SPEED: ${rig.speed}x`;
+    });
+
+    const animFlipBtn = document.getElementById('animFlipBtn');
+    animFlipBtn?.addEventListener('click', () => {
+      rig.flip = !rig.flip;
+      animFlipBtn.textContent = `FLIP: ${rig.flip ? 'ON' : 'OFF'}`;
+    });
+
+    this.syncRigUI = () => {
+      setAnimBtnActive(rig.animState);
+      setViewModeActive(rig.viewMode);
+    };
+
+    // Sliders
     const bindSlider = (id, prop, isRad = false) => {
       const slider = document.getElementById(id);
       if (!slider) return;
@@ -298,34 +417,25 @@ class CyberMarinoApp {
     bindSlider('sliderYaw', 'yaw', true);
     bindSlider('sliderLean', 'lean');
     bindSlider('sliderCrouch', 'crouch');
-    bindSlider('sliderHandX', 'fx');
-    bindSlider('sliderWeaponAngle', 'weaponAngle', true);
 
     const spinBtn = document.getElementById('rigSpinBtn');
-    spinBtn.addEventListener('click', () => {
+    spinBtn?.addEventListener('click', () => {
       rig.autoSpin = !rig.autoSpin;
       spinBtn.textContent = `AUTO-SPIN: ${rig.autoSpin ? 'ON' : 'OFF'}`;
     });
 
-    const weaponBtn = document.getElementById('rigWeaponBtn');
-    weaponBtn.addEventListener('click', () => {
-      const weapons = ['sword', 'staff', 'none'];
-      const next = (weapons.indexOf(rig.weapon) + 1) % weapons.length;
-      rig.weapon = weapons[next];
-      weaponBtn.textContent = `WEAPON: ${rig.weapon.toUpperCase()}`;
-    });
-
-    document.getElementById('rigResetBtn').addEventListener('click', () => {
+    document.getElementById('rigResetBtn')?.addEventListener('click', () => {
       rig.yaw = 0;
       rig.lean = 0;
       rig.crouch = 2;
-      rig.fx = 11;
-      rig.weaponAngle = 0.4;
-      document.getElementById('sliderYaw').value = 0;
-      document.getElementById('sliderLean').value = 0;
-      document.getElementById('sliderCrouch').value = 2;
-      document.getElementById('sliderHandX').value = 11;
-      document.getElementById('sliderWeaponAngle').value = 0.4;
+      const sYaw = document.getElementById('sliderYaw');
+      if (sYaw) sYaw.value = 0;
+      const sLean = document.getElementById('sliderLean');
+      if (sLean) sLean.value = 0;
+      const sCrouch = document.getElementById('sliderCrouch');
+      if (sCrouch) sCrouch.value = 2;
+      rig.setAnimState('ATTACK');
+      this.syncRigUI();
     });
   }
 
@@ -346,6 +456,12 @@ class CyberMarinoApp {
       case 'PLAYING':
         this.updateGame(dt);
         this.renderGame();
+        break;
+      case 'STORY_CODEX':
+        this.codex.draw(this.ctx, this.canvas.width, this.canvas.height);
+        if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('Space')) {
+          this.setScreen('PLAYING');
+        }
         break;
       case 'UPGRADE_SHOP':
         this.shop.draw(this.ctx, this.canvas.width, this.canvas.height, this.player);
@@ -384,30 +500,38 @@ class CyberMarinoApp {
 
     // Hit reaction handler for player attacks
     const onMeleeHit = (hit, player, weaponType) => {
-      soundSynth.playHit();
       let hitRadius = 32;
       let hitDmg = 28;
 
       if (weaponType === 'knife') {
         hitRadius = 24;
         hitDmg = 18;
+        soundSynth.playDaggerSwish();
       } else if (weaponType === 'sword') {
-        hitRadius = 36;
+        hitRadius = 38;
         hitDmg = 35;
+        soundSynth.playSwordSlash();
+        this.world.spawnSlashArc(player.x, player.y, player.facing);
       } else if (weaponType === 'pistol') {
-        hitRadius = 160; // Long-range projectile line!
+        hitRadius = 160; // Long-range laser projectile line!
         hitDmg = 25;
+        soundSynth.playLaserPistol();
       } else if (weaponType === 'rocket') {
         hitRadius = 180; // Rocket flight
         hitDmg = 65;
+        soundSynth.playRocketBlast();
         this.world.spawnExplosion(player.x + player.facing * 80, player.y - 10);
       } else if (weaponType === 'lightning') {
         hitRadius = 140;
         hitDmg = 75;
+        soundSynth.playLightningThunder();
+      } else {
+        soundSynth.playHit();
       }
 
       hitDmg = Math.floor(hitDmg * player.damageMultiplier);
 
+      // Hit enemies
       for (const e of this.world.enemies) {
         if (!e.isDead && Math.hypot(e.x - player.x, e.y - player.y) <= hitRadius) {
           e.takeDamage(hitDmg);
@@ -426,6 +550,13 @@ class CyberMarinoApp {
           }
         }
       }
+
+      // Hit destructible crates, barrels, chests
+      for (const d of this.world.destructibles) {
+        if (!d.isBroken && Math.hypot(d.x - player.x, d.y - player.y) <= hitRadius) {
+          d.smash(player, this.world, this.world.particleEngine, this.world.damageTexts);
+        }
+      }
     };
 
     const spawnPoison = (x, y) => {
@@ -433,7 +564,7 @@ class CyberMarinoApp {
     };
 
     this.player.update(dt, this.input, this.world, onMeleeHit, spawnPoison);
-    this.world.update(dt, this.player, soundSynth);
+    this.world.update(dt, this.player, this.input, soundSynth);
 
     if (this.player.hp <= 0) {
       soundSynth.playGameOver();
@@ -468,7 +599,7 @@ class CyberMarinoApp {
     this.ctx.drawImage(this.gameOffscreen, sx * 3, sy * 3, this.canvas.width, this.canvas.height);
     this.ctx.restore();
 
-    this.world.drawOverlay(this.ctx, 3, 3);
+    this.world.drawOverlay(this.ctx, 3, 3, this.canvas.width, this.canvas.height, this.player);
     this.renderHUD();
   }
 
@@ -519,10 +650,22 @@ class CyberMarinoApp {
     ctx.fillStyle = '#ffffff';
     ctx.fillText(`FLASKS: ${'🧪'.repeat(this.player.flasks)}`, 800, 36);
 
+    // Objective Banner below top HUD bar
+    ctx.fillStyle = 'rgba(8, 8, 14, 0.88)';
+    ctx.fillRect(16, 58, 620, 24);
+    ctx.strokeStyle = '#222238';
+    ctx.strokeRect(16, 58, 620, 24);
+
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = 'bold 10px "Courier New", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`[ ${this.world.sectorName} ] ${this.world.objective || 'MISSION ACTIVE'}`, 24, 74);
+
     // Star Power Banner if active
     if (this.player.starPowerTimer > 0) {
       ctx.fillStyle = '#ffff00';
-      ctx.fillText(`★ STAR POWER (${this.player.starPowerTimer.toFixed(1)}s) ★`, 400, 78);
+      ctx.textAlign = 'center';
+      ctx.fillText(`★ STAR POWER (${this.player.starPowerTimer.toFixed(1)}s) ★`, 480, 100);
     }
 
     // Boss Bar if Goliath is alive
@@ -539,7 +682,7 @@ class CyberMarinoApp {
 
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      ctx.fillText(`CYBER WARLORD MECH — ${Math.ceil(boss.hp)} HP`, 480, 506);
+      ctx.fillText(`GOLIATH PRIME TITAN MECH — ${Math.ceil(boss.hp)} HP`, 480, 506);
     }
 
     ctx.restore();
@@ -562,43 +705,49 @@ class CyberMarinoApp {
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00f0ff';
-    ctx.font = 'bold 34px "Courier New", monospace';
-    ctx.fillText('CYBER MARINO: RUN & GUN HUNTER', 480, 130);
+    ctx.font = 'bold 30px "Courier New", monospace';
+    ctx.fillText('VALEN: CHRONICLES OF AETHERIA', 480, 120);
 
     ctx.fillStyle = '#ffea00';
     ctx.font = '13px "Courier New", monospace';
-    ctx.fillText('ARCADE RUN & GUN • WEAPON EVOLUTION • ENEMY LOOT DROPS', 480, 165);
+    ctx.fillText('THE 21 PRIMAL SEALS • MARTIAL RUN & JUMP • PROCEDURAL PIXEL ENGINE', 480, 155);
     ctx.fillStyle = '#8888aa';
-    ctx.fillText('Powered by patch-gg/pixelfx • Hugo Duprez (Sprite Fusion) • Web Audio', 480, 190);
+    ctx.font = '11px "Courier New", monospace';
+    ctx.fillText('Original Action Adventure by Kaushal (kaushalboii) • Procedural Fluid Engine • Web Audio', 480, 178);
 
     const options = [
-      { text: '▶  [1] PLAY GAME MISSION', screen: 'PLAYING' },
-      { text: '⚡  [2] UPGRADE ARSENAL & PERKS', screen: 'UPGRADE_SHOP' },
-      { text: '🧪  [3] VFX STUDIO (244 EFFECTS)', screen: 'VFX_STUDIO' },
-      { text: '🧬  [4] HOW PIXEL ART IS BUILT', screen: 'PIXEL_RIG' },
-      { text: '📖  [5] HOW TO PLAY & GUIDE', screen: 'GUIDE' },
-      { text: '⚙️  [6] SETTINGS & THEMES', screen: 'SETTINGS' },
+      { text: '▶  [1] PLAY STORY CAMPAIGN', screen: 'PLAYING' },
+      { text: '📜  [2] STORY & CODEX (21 SEALS)', screen: 'STORY_CODEX' },
+      { text: '⚡  [3] ARSENAL FORGE & PERKS', screen: 'UPGRADE_SHOP' },
+      { text: '🧪  [4] VFX STUDIO (244 EFFECTS)', screen: 'VFX_STUDIO' },
+      { text: '🧬  [5] HOW PIXEL ART IS BUILT', screen: 'PIXEL_RIG' },
+      { text: '📖  [6] HOW TO PLAY & GUIDE', screen: 'GUIDE' },
+      { text: '⚙️  [7] SETTINGS & THEMES', screen: 'SETTINGS' },
     ];
 
     options.forEach((opt, i) => {
-      const y = 240 + i * 44;
+      const y = 215 + i * 38;
       ctx.fillStyle = '#12121c';
-      ctx.fillRect(280, y - 20, 400, 32);
+      ctx.fillRect(280, y - 18, 400, 30);
       ctx.strokeStyle = '#333348';
-      ctx.strokeRect(280, y - 20, 400, 32);
+      ctx.strokeRect(280, y - 18, 400, 30);
 
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 13px "Courier New", monospace';
+      ctx.font = 'bold 12px "Courier New", monospace';
       ctx.fillText(opt.text, 480, y);
     });
 
     ctx.fillStyle = '#777788';
-    ctx.font = '12px "Courier New", monospace';
-    ctx.fillText('Press [SPACE] to Play • [Q] Switch Weapon • [U] Arsenal Shop • [T] Theme', 480, 510);
+    ctx.font = '11px "Courier New", monospace';
+    ctx.fillText('Press [SPACE] to Play • [Q] Switch Weapon • [U] Arsenal Forge • [T] Theme', 480, 508);
 
-    if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) {
-      this.setScreen('PLAYING');
-    }
+    if (this.input.wasJustPressed('Digit1') || this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) this.setScreen('PLAYING');
+    if (this.input.wasJustPressed('Digit2')) this.setScreen('STORY_CODEX');
+    if (this.input.wasJustPressed('Digit3')) this.setScreen('UPGRADE_SHOP');
+    if (this.input.wasJustPressed('Digit4')) this.setScreen('VFX_STUDIO');
+    if (this.input.wasJustPressed('Digit5')) this.setScreen('PIXEL_RIG');
+    if (this.input.wasJustPressed('Digit6')) this.setScreen('GUIDE');
+    if (this.input.wasJustPressed('Digit7')) this.setScreen('SETTINGS');
 
     ctx.restore();
   }
@@ -611,30 +760,33 @@ class CyberMarinoApp {
 
     ctx.fillStyle = '#00f0ff';
     ctx.font = 'bold 22px "Courier New", monospace';
-    ctx.fillText('📖 CYBER MARINO: GAMEPLAY & UPGRADE GUIDE', 40, 45);
+    ctx.fillText('📖 VALEN: GAMEPLAY, STORY & CONTROLS GUIDE', 40, 42);
 
     ctx.fillStyle = '#cccccc';
-    ctx.font = '12px "Courier New", monospace';
-    let y = 80;
+    ctx.font = '11.5px "Courier New", monospace';
+    let y = 72;
     const lines = [
-      'MARIO & SHOOTING GAMEPLAY:',
-      '  • Run & Jump: Use [A / D] to run and [W / Space] to jump.',
-      '  • Enemy Head Stomp: Fall onto enemies from above to crush them and bounce high!',
-      '  • Mystery Blocks: Jump into floating [ ? ] blocks from below to shower lucky coins & loot!',
-      '  • Power Star Mode: Rare stars give Mario-style rainbow invulnerability to smash foes on touch!',
+      'STORY & THE 21 PRIMAL SEALS:',
+      '  • Lord Malakor the Dread Automaton locked away the 21 Primal Seals across Aetheria.',
+      '  • Journey across 3 Terraces: Azure Skyline, Sunken Cistern, and the Dread Citadel.',
+      '  • Commune with Allied Leaders: Commander Roland [Ω], Alchemist Lyra [Ψ], and High Seer Elyon [Φ].',
       '',
-      'ENEMY LOOT DROPS & REWARDS:',
-      '  • Defeated enemies drop bouncy Gold Coins (🪙), XP Orbs (⚡), Heart Medkits (❤️), and Stars!',
-      '  • Walk near drops to pull them in (upgrade your Magnet Radius to suck up loot from far away).',
-      '  • Gaining XP levels you up, increasing Max HP, Max Energy, and Base Damage.',
+      'MARTIAL AEROCAST PLUNGE & GLYPHIC CACHES:',
+      '  • Dropkick Stomp: Fall onto automata or crates from above to crush them and rebound high!',
+      '  • Primal Glyphic Caches [ ? ]: Strike from underneath to shower Aether Shards, XP, and healing dew.',
+      '  • Smashable Supply Crates [x] & Relic Chests [=]: Hit with weapons or stomp to plunder scrap.',
+      '  • Sanctuary Sheep {m}: Roaming pasture fauna. Bleats gently and awards +25 XP when petted [E].',
+      '  • Aether Surge: Rare stars grant radiant invulnerability to vaporize automata on contact.',
       '',
-      'WEAPON EVOLUTION & ARSENAL SHOP ([U] or [TAB]):',
-      '  • Combat Dagger / Knife   : Rapid 6-hit flurry stabs with spark bursts (ultra-fast).',
-      '  • Cyber Katana / Sword    : 3-stroke heavy blade combo with wide cleaving arcs.',
-      '  • Laser Blaster / Pistol  : Aimed 3-shot laser projectiles crossing the screen.',
-      '  • Rocket Bazooka          : Fires devastating area-of-effect explosive missiles.',
-      '  • Celestial Lightning     : Summons screen-clearing lightning storm.',
-      '  • Press [Q] to switch equipped weapons anytime in battle!',
+      'WEAPON EVOLUTION ([Q] TO SWITCH EQUIPPED WEAPON):',
+      '  • Dusk Dagger (Melee)         : 6-hit rapid flurry piercing stabs with spark bursts.',
+      '  • Valen’s Broadsword (Melee)   : 3-stroke heavy blade combo with sweeping crescent slash arcs.',
+      '  • Aether Blaster (Ranged)     : Focused photon projectile beams crossing the battlefield.',
+      '  • Concussion Mortar (Ordnance): Long-range explosive shells dealing massive kinetic detonation.',
+      '  • Tempest Wrath (Storm)       : Summons screen-clearing high-voltage celestial thunderbolts.',
+      '',
+      'ARSENAL FORGE ([U] / [TAB]):',
+      '  • Spend Aether Shards to upgrade Damage Multiplier, Max HP, Energy, Magnet Pull, and Speed.',
       '',
       'Press [ESC] or click MENU to return.',
     ];
@@ -646,7 +798,7 @@ class CyberMarinoApp {
         ctx.fillStyle = '#bbbbcc';
       }
       ctx.fillText(line, 40, y);
-      y += 22;
+      y += 19;
     }
 
     ctx.restore();
@@ -666,11 +818,11 @@ class CyberMarinoApp {
     ctx.font = '13px "Courier New", monospace';
     let y = 100;
     const settings = [
-      `1. VISUAL THEME       : ${this.theme.toUpperCase()} (Press [T] to cycle B&W Mono / Neon Cyber / Matrix Green)`,
+      `1. VISUAL THEME       : ${this.theme.toUpperCase()} (Press [T] to cycle Mono B&W / Vibrant Aether / Verdant Matrix)`,
       `2. CRT SCANLINES      : ${this.crt ? 'ENABLED' : 'DISABLED'} (Toggle in toolbar)`,
       `3. CHIPTUNE MUSIC     : ${soundSynth.musicPlaying ? 'PLAYING' : 'MUTED'} (Press [B])`,
       `4. SOUND EFFECTS      : ${soundSynth.muted ? 'MUTED' : 'ENABLED'} (Press [M])`,
-      `5. PIXELFX ARCHIVE    : 244 effects across 21 categories (Fully accessible in Studio tab)`,
+      `5. PIXEL EFFECTS ARCHIVE : 244 effects across 21 categories (Fully accessible in Studio tab)`,
     ];
 
     settings.forEach((s) => {
@@ -715,15 +867,15 @@ class CyberMarinoApp {
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '16px "Courier New", monospace';
-    ctx.fillText(`CYBER WARLORD MECH DESTROYED!`, 480, 255);
+    ctx.fillText(`LORD MALAKOR DEFEATED • 21 PRIMAL SEALS RESTORED!`, 480, 255);
     ctx.fillText(
-      `Score: ${this.player.score} | Coins: ${this.player.coins} | Kills: ${this.player.kills} | Level: ${this.player.level}`,
+      `Score: ${this.player.score} | Aether Shards: ${this.player.coins} | Kills: ${this.player.kills} | Level: ${this.player.level}`,
       480,
       290
     );
 
     ctx.fillStyle = '#00f0ff';
-    ctx.fillText('Press [SPACE] to Play Again or Open Upgrade Arsenal', 480, 340);
+    ctx.fillText('Press [SPACE] to Play Again or Open Arsenal Forge', 480, 340);
 
     if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) {
       this.restartMission();
@@ -742,7 +894,7 @@ class CyberMarinoApp {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff3344';
     ctx.font = 'bold 36px "Courier New", monospace';
-    ctx.fillText('GAME OVER', 480, 220);
+    ctx.fillText('HERO FALLEN', 480, 220);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '14px "Courier New", monospace';
@@ -758,5 +910,5 @@ class CyberMarinoApp {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  new CyberMarinoApp();
+  new ValenApp();
 });

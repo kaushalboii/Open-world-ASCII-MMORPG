@@ -1,4 +1,4 @@
-// Sprite Fusion Poison VFX & Projectiles in Pure ASCII Character Matrix
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 
 import { soundSynth } from '../audio/SoundSynth.js';
 

@@ -48,8 +48,26 @@ export class DialogueBox {
       }
     }
 
-    // Advance / Dismiss dialogue with Space, Enter, or E
-    if (input.justPressed.slash || input.justPressed.dash || input.keys.block) {
+    // Advance / Dismiss dialogue with Space, Enter, J, or E
+    const advance = input && (
+      (input.wasJustPressed && (
+        input.wasJustPressed('jump') || 
+        input.wasJustPressed('punch') || 
+        input.wasJustPressed('flask') || 
+        input.wasJustPressed('Space') || 
+        input.wasJustPressed('KeyE') || 
+        input.wasJustPressed('KeyJ') || 
+        input.wasJustPressed('Enter') || 
+        input.wasJustPressed('Mouse0')
+      )) ||
+      (input.justPressed && (
+        input.justPressed.slash || 
+        input.justPressed.dash || 
+        (input.justPressed.has && (input.justPressed.has('Space') || input.justPressed.has('KeyE') || input.justPressed.has('KeyJ')))
+      ))
+    );
+
+    if (advance) {
       if (this.charIndex < this.text.length) {
         // Skip typing, show all text
         this.charIndex = this.text.length;

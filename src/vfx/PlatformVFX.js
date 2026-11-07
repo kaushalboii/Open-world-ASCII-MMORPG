@@ -1,4 +1,4 @@
-// Sprite Fusion Inspired Pixel & ASCII VFX Engine
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 // Poison Gas Clouds, Bubbling Toxic Puddles, Poison Status Pulses, and Laser Projectiles
 
 import { soundSynth } from '../audio/SoundSynth.js';

@@ -1,5 +1,5 @@
-// Open-World Map Generator for Tiny Glyphs
-// Inspired by the Tiny Swords island map: Castle, Watchtowers, Cottages, Cliffs, Forests, Bridges, Ocean
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 
 export const TILE_SIZE = 16;
 
@@ -60,7 +60,7 @@ export class WorldMap {
       }
     }
 
-    // 2. Carve island shapes using multiple overlapping land masses (matching Tiny Swords island silhouette)
+    // Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
     const landCenters = [
       // Main central kingdom
       { cx: 50, cy: 38, rx: 28, ry: 20 },

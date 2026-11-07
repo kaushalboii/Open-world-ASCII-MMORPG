@@ -1,5 +1,5 @@
 // Procedural 8-bit sound synthesizer using Web Audio API
-// Zero external asset dependencies - instant, crisp retro audio
+// Custom synthesized SFX for weapons, laser blasters, rockets, lightning, stomps, and chiptune BGM
 
 class SoundSynth {
   constructor() {
@@ -17,6 +17,165 @@ class SoundSynth {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
+  }
+
+  // Cute sheep bleat
+  playSheepBaa() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, t);
+    osc.frequency.linearRampToValueAtTime(370, t + 0.1);
+    osc.frequency.linearRampToValueAtTime(310, t + 0.28);
+
+    gain.gain.setValueAtTime(0.12, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.3);
+  }
+
+  // Boss roaring sound
+  playBossRoar() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(90, t);
+    osc.frequency.linearRampToValueAtTime(140, t + 0.25);
+    osc.frequency.exponentialRampToValueAtTime(45, t + 0.6);
+
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.6);
+
+    this.playNoise(0.5, 0.3, 350);
+  }
+
+  // Laser Blaster Gun pew-pew
+  playLaserPistol() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(880, t);
+    osc.frequency.exponentialRampToValueAtTime(110, t + 0.14);
+
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.14);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.14);
+  }
+
+  // Rocket Bazooka explosion boom
+  playRocketBlast() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(30, t + 0.4);
+
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.4);
+
+    this.playNoise(0.35, 0.3, 400);
+  }
+
+  // Celestial Lightning crackle
+  playLightningThunder() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(400, t);
+    osc.frequency.setValueAtTime(800, t + 0.05);
+    osc.frequency.exponentialRampToValueAtTime(60, t + 0.3);
+
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.3);
+
+    this.playNoise(0.25, 0.25, 2000);
+  }
+
+  // Mario-style enemy head stomp squish
+  playStompSquish() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(260, t);
+    osc.frequency.exponentialRampToValueAtTime(520, t + 0.08);
+
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.12);
+  }
+
+  // Dagger rapid slice
+  playDaggerSwish() {
+    if (this.muted) return;
+    this.playNoise(0.05, 0.18, 1800);
   }
 
   playSwordSlash() {
@@ -41,7 +200,6 @@ class SoundSynth {
     osc.start(t);
     osc.stop(t + 0.12);
 
-    // Add white noise burst for air swoosh
     this.playNoise(0.08, 0.15, 800);
   }
 
@@ -66,58 +224,6 @@ class SoundSynth {
 
     osc.start(t);
     osc.stop(t + 0.15);
-  }
-
-  playClank() {
-    // Shield block or sword parry
-    if (this.muted) return;
-    this.init();
-    if (!this.ctx) return;
-
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(800, t);
-    osc.frequency.setValueAtTime(1200, t + 0.03);
-    osc.frequency.exponentialRampToValueAtTime(300, t + 0.1);
-
-    gain.gain.setValueAtTime(0.2, t);
-    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start(t);
-    osc.stop(t + 0.1);
-  }
-
-  playSheepBaa() {
-    if (this.muted) return;
-    this.init();
-    if (!this.ctx) return;
-
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sawtooth';
-    // Vibrato effect for "baaa"
-    osc.frequency.setValueAtTime(320, t);
-    osc.frequency.linearRampToValueAtTime(340, t + 0.1);
-    osc.frequency.linearRampToValueAtTime(310, t + 0.25);
-    osc.frequency.linearRampToValueAtTime(280, t + 0.35);
-
-    gain.gain.setValueAtTime(0.01, t);
-    gain.gain.linearRampToValueAtTime(0.12, t + 0.05);
-    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start(t);
-    osc.stop(t + 0.35);
   }
 
   playCoin() {
@@ -224,38 +330,12 @@ class SoundSynth {
     noise.stop(this.ctx.currentTime + duration);
   }
 
-  playBossRoar() {
-    if (this.muted) return;
-    this.init();
-    if (!this.ctx) return;
-
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(80, t);
-    osc.frequency.linearRampToValueAtTime(130, t + 0.15);
-    osc.frequency.exponentialRampToValueAtTime(45, t + 0.6);
-
-    gain.gain.setValueAtTime(0.4, t);
-    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
-    osc.start(t);
-    osc.stop(t + 0.6);
-
-    this.playNoise(0.5, 0.3, 300);
-  }
-
   playVictory() {
     if (this.muted) return;
     this.init();
     if (!this.ctx) return;
 
-    const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5 arpeggio
+    const notes = [261.63, 329.63, 392.00, 523.25];
     notes.forEach((freq, i) => {
       const t = this.ctx.currentTime + i * 0.12;
       const osc = this.ctx.createOscillator();
@@ -305,7 +385,6 @@ class SoundSynth {
           osc.stop(t + 0.13);
         }
 
-        // Kick on every 4th step, hi-hat on odd steps
         if (this.step % 4 === 0) {
           const kickOsc = this.ctx.createOscillator();
           const kickGain = this.ctx.createGain();
@@ -353,4 +432,3 @@ class SoundSynth {
 }
 
 export const soundSynth = new SoundSynth();
-

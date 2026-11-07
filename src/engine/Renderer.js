@@ -1,4 +1,4 @@
-// High-Performance Black & White ASCII Monospace Renderer for Tiny Glyphs
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 
 import { TileType, TILE_SIZE } from '../world/WorldMap.js';
 

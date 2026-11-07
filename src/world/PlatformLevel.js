@@ -90,7 +90,7 @@ export class PlatformLevel {
       }
     }
 
-    // 3. Cyberpunk Scenery (Signs, Towers, Pipes)
+    // 3. Terrace Scenery (Ancient Pillars, Outpost Relics, Aqueducts)
     this.scenery.push(
       { x: 200, y: 260, text: '[ NEON APOCALYPSE ]', color: '#aaaaaa' },
       { x: 800, y: 180, text: '< SECTOR 7 - INDUSTRIAL >', color: '#888888' },
@@ -169,7 +169,7 @@ export class PlatformLevel {
       }
     }
 
-    // 4. Render Toxic Acid Sludge Hazard Pits (Sprite Fusion green/white ripple effect)
+    // Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
     for (const h of this.hazards) {
       const screen = camera.worldToScreen(h.x, h.y);
       if (screen.x + h.width < -20 || screen.x > camera.viewportWidth + 20) continue;

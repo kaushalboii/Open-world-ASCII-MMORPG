@@ -49,14 +49,14 @@ export class SlashArc {
     }
   }
 
-  render(ctx, camera) {
+  render(ctx, cameraOrScale) {
     if (this.isFinished) return;
 
     const progress = this.age / this.duration; // 0.0 to 1.0
     const alpha = Math.max(0, 1 - progress * 1.2);
 
     ctx.save();
-    ctx.font = 'bold 18px monospace';
+    ctx.font = 'bold 18px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -71,16 +71,25 @@ export class SlashArc {
       const wx = this.originX + Math.cos(ptAngle) * currentRadius;
       const wy = this.originY + Math.sin(ptAngle) * currentRadius;
 
-      const screen = camera.worldToScreen(wx, wy);
+      let screenX = wx;
+      let screenY = wy;
+      if (cameraOrScale && typeof cameraOrScale.worldToScreen === 'function') {
+        const s = cameraOrScale.worldToScreen(wx, wy);
+        screenX = s.x;
+        screenY = s.y;
+      } else if (typeof cameraOrScale === 'number') {
+        screenX = wx * cameraOrScale;
+        screenY = wy * cameraOrScale;
+      }
 
       // Core white slash glyph
       ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-      ctx.fillText(seg.glyph, screen.x, screen.y);
+      ctx.fillText(seg.glyph, screenX, screenY);
 
       // Secondary motion blur spark
       if (progress < 0.6) {
-        ctx.fillStyle = `rgba(180, 180, 180, ${alpha * 0.6})`;
-        ctx.fillText('·', screen.x - Math.cos(ptAngle) * 6, screen.y - Math.sin(ptAngle) * 6);
+        ctx.fillStyle = `rgba(0, 240, 255, ${alpha * 0.7})`;
+        ctx.fillText('·', screenX - Math.cos(ptAngle) * 6, screenY - Math.sin(ptAngle) * 6);
       }
     });
 

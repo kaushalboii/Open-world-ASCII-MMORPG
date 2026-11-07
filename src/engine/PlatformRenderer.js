@@ -1,4 +1,4 @@
-// 2D Side-Scrolling Platformer Renderer & HUD for Tiny Glyphs
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 
 export class PlatformRenderer {
   constructor(canvas) {

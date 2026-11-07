@@ -1,5 +1,5 @@
 // 2D Side-Scrolling Action Platformer Enemies in ASCII
-// Cyber Mutants, Hover Drones, and Warlord Goliath Boss
+// Blight Mutants, Hover Drones, and Lord Malakor Titan Boss
 
 import { soundSynth } from '../audio/SoundSynth.js';
 
@@ -87,7 +87,7 @@ export class PlatformEnemy {
         this.vy = 0;
       }
     } else if (this.type === 'warlord') {
-      // Boss: Cyber Warlord
+      // Boss: Lord Malakor Titan
       this.facing = player.x >= this.x ? 1 : -1;
 
       if (distToPlayer < 350) {
@@ -167,7 +167,7 @@ export class PlatformEnemy {
       ctx.fillStyle = '#666666';
       ctx.fillText(' - - ', screen.x, screen.y + 10);
     } else if (this.type === 'mutant') {
-      // Cyber Mutant ASCII art
+      // Blight Mutant ASCII art
       const f = this.facing === 1;
       ctx.fillText(f ? ' [X] ' : ' [X] ', screen.x, screen.y - 10);
       ctx.fillText(f ? '/|▓▓|>' : '<|▓▓|\\', screen.x, screen.y);

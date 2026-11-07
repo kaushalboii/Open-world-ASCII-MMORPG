@@ -1,4 +1,4 @@
-// ASCII Particle System for Tiny Glyphs
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 // Emits high-contrast sparks, smoke puffs, water ripples, and dash afterimages
 
 export class ParticleEngine {
@@ -87,7 +87,7 @@ export class ParticleEngine {
     }
   }
 
-  render(ctx, camera) {
+  render(ctx, cameraOrScale) {
     if (this.particles.length === 0) return;
 
     ctx.save();
@@ -95,12 +95,22 @@ export class ParticleEngine {
     ctx.textBaseline = 'middle';
 
     for (const p of this.particles) {
-      const screen = camera.worldToScreen(p.x, p.y);
+      let screenX = p.x;
+      let screenY = p.y;
+      if (cameraOrScale && typeof cameraOrScale.worldToScreen === 'function') {
+        const s = cameraOrScale.worldToScreen(p.x, p.y);
+        screenX = s.x;
+        screenY = s.y;
+      } else if (typeof cameraOrScale === 'number') {
+        screenX = p.x * cameraOrScale;
+        screenY = p.y * cameraOrScale;
+      }
+
       const alpha = Math.max(0, 1 - (p.age / p.lifetime));
 
       ctx.font = `${p.size}px monospace`;
       ctx.fillStyle = p.color.includes('rgba') ? p.color : `rgba(255, 255, 255, ${alpha})`;
-      ctx.fillText(p.glyph, screen.x, screen.y);
+      ctx.fillText(p.glyph, screenX, screenY);
     }
 
     ctx.restore();

@@ -1,4 +1,4 @@
-// Interactive Grazing Sheep AI for Tiny Glyphs
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 // Cute ASCII sheep that graze, wander, bleat, and react to sword swings
 
 import { soundSynth } from '../audio/SoundSynth.js';
@@ -68,16 +68,18 @@ export class Sheep {
       const nextX = this.x + this.vx * dt;
       const nextY = this.y + this.vy * dt;
 
-      if (!worldMap.isSolid(nextX, this.y, this.radius)) {
-        this.x = nextX;
-      } else {
-        this.vx = -this.vx * 0.5;
-      }
+      if (worldMap && typeof worldMap.isSolid === 'function') {
+        if (!worldMap.isSolid(nextX, this.y, this.radius)) this.x = nextX;
+        else this.vx = -this.vx * 0.5;
 
-      if (!worldMap.isSolid(this.x, nextY, this.radius)) {
-        this.y = nextY;
+        if (!worldMap.isSolid(this.x, nextY, this.radius)) this.y = nextY;
+        else this.vy = -this.vy * 0.5;
       } else {
-        this.vy = -this.vy * 0.5;
+        // Platform world bounds
+        this.x = Math.max(16, Math.min(304, nextX));
+        if (worldMap && worldMap.groundY) {
+          this.y = Math.min(worldMap.groundY, nextY);
+        }
       }
 
       if (this.vx > 2) this.facing = 1;
@@ -85,18 +87,49 @@ export class Sheep {
     }
   }
 
-  render(ctx, camera) {
-    const screen = camera.worldToScreen(this.x, this.y);
+  draw(frame, theme = 'color') {
+    const W = frame.w;
+    const H = frame.h;
+    const bx = Math.round(this.x);
+    const by = Math.round(this.y);
+
+    const fluffCol = theme === 'bw' ? 0xffffffff : 0xffe8e8f0;
+    const faceCol = theme === 'bw' ? 0xff444444 : 0xff302830;
+
+    // 8x6 cute fluffy sheep body
+    for (let dy = -5; dy <= 0; dy++) {
+      for (let dx = -4; dx <= 4; dx++) {
+        const px = bx + dx;
+        const py = by + dy;
+        if (px >= 0 && px < W && py >= 0 && py < H) {
+          const isFace = (this.facing === 1 && dx >= 2 && dy <= -2) || (this.facing === -1 && dx <= -2 && dy <= -2);
+          frame.color[py * W + px] = isFace ? faceCol : fluffCol;
+        }
+      }
+    }
+  }
+
+  render(ctx, cameraOrScale) {
+    let screenX = this.x;
+    let screenY = this.y;
+
+    if (cameraOrScale && typeof cameraOrScale.worldToScreen === 'function') {
+      const s = cameraOrScale.worldToScreen(this.x, this.y);
+      screenX = s.x;
+      screenY = s.y;
+    } else if (typeof cameraOrScale === 'number') {
+      screenX = this.x * cameraOrScale;
+      screenY = this.y * cameraOrScale;
+    }
 
     ctx.save();
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 12px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Sheep fluff: clean pure white
     ctx.fillStyle = '#ffffff';
     const text = this.facing === 1 ? '{m}' : '{w}';
-    ctx.fillText(text, screen.x, screen.y);
+    ctx.fillText(text, screenX, screenY);
 
     ctx.restore();
   }

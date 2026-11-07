@@ -1,4 +1,4 @@
-// Player Knight Controller for Tiny Glyphs
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 // Movement, 360-degree Sword Slash, Shield Block, and Dash
 
 import { SlashArc } from '../combat/SlashArc.js';

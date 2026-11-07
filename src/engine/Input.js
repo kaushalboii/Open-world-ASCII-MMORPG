@@ -1,4 +1,4 @@
-// Comprehensive Input controller for Tiny Glyphs - PixelFX Edition
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 // Supports keyboard, mouse, and mobile touch pads with single press buffering
 
 export class Input {

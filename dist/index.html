@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CYBER MARINO — PixelFX Run & Gun Action Platformer</title>
+  <title>VALEN: CHRONICLES OF AETHERIA — The 21 Primal Seals</title>
   <style>
     * {
       box-sizing: border-box;
@@ -295,21 +295,22 @@
       color: #bbbbdd;
     }
   </style>
-  <script type="module" crossorigin src="./assets/index-Cc-wP25r.js"></script>
+  <script type="module" crossorigin src="./assets/index-vQqmxEuP.js"></script>
 </head>
 <body>
   <header>
-    <h1>CYBER MARINO: RUN & GUN HUNTER</h1>
-    <div class="tagline">Arcade Run & Gun • Weapon Evolution • Loot Drops • 244 Procedural Pixel Effects</div>
+    <h1>VALEN: CHRONICLES OF AETHERIA</h1>
+    <div class="tagline">The 21 Primal Seals • Martial Run & Jump Adventure • Weapon Evolution • Procedural Pixel Engine</div>
   </header>
 
   <!-- Clean Top Navigation Tabs -->
   <div class="nav-tabs">
     <button class="nav-tab active" id="tabMenu">🏠 MENU</button>
-    <button class="nav-tab" id="tabPlay">▶ PLAY GAME</button>
+    <button class="nav-tab" id="tabPlay">▶ PLAY STORY</button>
+    <button class="nav-tab" id="tabStory">📜 STORY & CODEX</button>
     <button class="nav-tab upgrade-highlight" id="tabShop">⚡ UPGRADE ARSENAL</button>
     <button class="nav-tab" id="tabVfx">🧪 VFX STUDIO (244)</button>
-    <button class="nav-tab" id="tabRig">🧬 HOW PIXEL ART IS BUILT</button>
+    <button class="nav-tab" id="tabRig">🧬 SPRITE ANIMATOR & RIG</button>
     <button class="nav-tab" id="tabGuide">📖 GUIDE</button>
     <button class="nav-tab" id="tabSettings">⚙️ SETTINGS</button>
   </div>
@@ -332,36 +333,42 @@
       <button class="tool-btn" id="studioBgBtn">BG: GROUND</button>
     </div>
     <div class="meta-box" id="effectMetaDesc">
-      Select an effect to view details, duration, FPS, and Hugo Duprez / Sprite Fusion / Patch attribution.
+      Select an effect to view details, duration, FPS, and procedural animation parameters.
     </div>
   </div>
 
-  <!-- Rig Explorer Interactive Controls (Active in PIXEL RIG tab) -->
+  <!-- Sprite Animator & Rig Explorer Interactive Controls (Active in PIXEL RIG tab) -->
   <div id="rigControls">
-    <div class="studio-row">
+    <div class="studio-row" style="gap:6px; flex-wrap:wrap; align-items:center;">
+      <span style="font-size:10.5px; color:#00f0ff; font-weight:bold;">STATE:</span>
+      <button class="tool-btn" id="animBtnRun">🏃 RUN</button>
+      <button class="tool-btn" id="animBtnIdle">🧘 IDLE</button>
+      <button class="tool-btn" id="animBtnJump">🦘 JUMP</button>
+      <button class="tool-btn" id="animBtnAttack" style="border-color:#00f0ff; color:#00f0ff; background:#1b2438;">🥊 ATTACK (STRAIGHT PUNCH)</button>
+      <span style="border-left:1px solid #333348; height:18px; margin:0 4px;"></span>
+      <span style="font-size:10.5px; color:#ff2a85; font-weight:bold;">RENDER:</span>
+      <button class="tool-btn" id="animBtnPixel" style="border-color:#ff2a85; color:#ffffff;">🎨 PIXEL ART</button>
+      <button class="tool-btn" id="animBtnAscii">🔤 SMOOTH ASCII</button>
+      <button class="tool-btn" id="animBtnHybrid">⚡ HYBRID</button>
+      <button class="tool-btn" id="animBtnBones">🦴 3D SKELETON</button>
+    </div>
+    <div class="studio-row" style="gap:6px; flex-wrap:wrap; margin-top:6px; align-items:center;">
+      <span style="font-size:10.5px; color:#aaaaaa; font-weight:bold;">MOTION PROMPT:</span>
+      <input type="text" id="animMotionInput" value="Straight punch animation" style="background:#14141e; color:#ffffff; border:1px solid #444455; padding:5px 9px; font-family:inherit; font-size:11px; border-radius:3px; flex-grow:1; max-width:300px;">
+      <button class="tool-btn" id="animSubmitBtn">▶ ANIMATE</button>
+      <button class="tool-btn" id="animPlayBtn">⏸ PAUSE</button>
+      <button class="tool-btn" id="animSpeedBtn">SPEED: 1.0x</button>
+      <button class="tool-btn" id="animFlipBtn">FLIP: OFF</button>
       <button class="tool-btn" id="rigSpinBtn">AUTO-SPIN: OFF</button>
-      <button class="tool-btn" id="rigWeaponBtn">WEAPON: SWORD</button>
       <button class="tool-btn" id="rigResetBtn">RESET POSE</button>
     </div>
-    <div class="slider-group">
+    <div class="slider-group" style="margin-top:6px;">
       <label>3D Yaw (Turn):</label>
       <input type="range" id="sliderYaw" min="-3.14" max="3.14" step="0.05" value="0">
-    </div>
-    <div class="slider-group">
-      <label>Spine Lean:</label>
+      <label style="margin-left:14px;">Spine Lean:</label>
       <input type="range" id="sliderLean" min="-8" max="8" step="0.5" value="0">
-    </div>
-    <div class="slider-group">
-      <label>Hip Crouch:</label>
+      <label style="margin-left:14px;">Hip Crouch:</label>
       <input type="range" id="sliderCrouch" min="0" max="10" step="0.5" value="2">
-    </div>
-    <div class="slider-group">
-      <label>Near Hand Reach:</label>
-      <input type="range" id="sliderHandX" min="-15" max="22" step="1" value="11">
-    </div>
-    <div class="slider-group">
-      <label>Weapon Angle:</label>
-      <input type="range" id="sliderWeaponAngle" min="-3.14" max="3.14" step="0.1" value="0.4">
     </div>
   </div>
 
@@ -393,12 +400,13 @@
   <div class="footer-guide">
     <strong>[ CONTROLS ]</strong>
     <strong>A / D</strong>: Run |
-    <strong>W / Space</strong>: Jump (Stomp enemy heads!) |
+    <strong>W / Space</strong>: Jump (Stomp enemy heads & crates!) |
     <strong>J / Z</strong>: Attack / Shoot |
+    <strong>E / Space</strong>: Talk to NPCs / Pet Sheep |
     <strong>Q</strong>: Switch Weapon |
-    <strong>U / Tab</strong>: Upgrade Arsenal |
+    <strong>U / Tab</strong>: Arsenal Shop |
     <strong>L / C</strong>: Dash Strike |
-    <strong>K / E</strong>: Poison Flask |
+    <strong>K</strong>: Poison Flask |
     <strong>ESC</strong>: Pause
   </div>
 

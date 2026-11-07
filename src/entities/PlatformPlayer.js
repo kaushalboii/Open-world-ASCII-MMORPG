@@ -115,7 +115,7 @@ export class PlatformPlayer {
       level.checkPlayerAttack(punchX, punchY, 20, 25, this, damageText, particles, camera);
     }
 
-    // Secondary Attack: Throw Poison Flask (Sprite Fusion Poison VFX!)
+    // Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
     if (input.justPressed.dash && this.flasks > 0) {
       this.flasks--;
       soundSynth.playSwordSlash();

@@ -1,4 +1,4 @@
-// Enemy AI Entities for Tiny Glyphs
+// Procedural Pixel Effects Engine • Created by Kaushal (kaushalboii)
 // Rogue Knights and Spearmen patrolling the island
 
 import { soundSynth } from '../audio/SoundSynth.js';

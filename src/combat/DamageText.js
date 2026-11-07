@@ -35,7 +35,7 @@ export class DamageTextManager {
     }
   }
 
-  render(ctx, camera) {
+  render(ctx, cameraOrScale) {
     if (this.entries.length === 0) return;
 
     ctx.save();
@@ -43,22 +43,39 @@ export class DamageTextManager {
     ctx.textBaseline = 'middle';
 
     for (const e of this.entries) {
-      const screen = camera.worldToScreen(e.x, e.y);
+      let screenX = e.x;
+      let screenY = e.y;
+      if (cameraOrScale && typeof cameraOrScale.worldToScreen === 'function') {
+        const s = cameraOrScale.worldToScreen(e.x, e.y);
+        screenX = s.x;
+        screenY = s.y;
+      } else if (typeof cameraOrScale === 'number') {
+        screenX = e.x * cameraOrScale;
+        screenY = e.y * cameraOrScale;
+      }
+
       const alpha = Math.max(0, 1 - (e.age / e.duration));
 
       if (e.type === 'crit') {
-        ctx.font = 'bold 15px monospace';
-        // Inverted black text with white backing or bold white text with brackets
+        ctx.font = 'bold 15px "Courier New", monospace';
+        ctx.fillStyle = `rgba(255, 234, 0, ${alpha})`;
+        ctx.fillText(`★ ${e.text} ★`, screenX, screenY);
+      } else if (e.type === 'heal') {
+        ctx.font = 'bold 13px "Courier New", monospace';
+        ctx.fillStyle = `rgba(0, 255, 136, ${alpha})`;
+        ctx.fillText(e.text, screenX, screenY);
+      } else if (e.type === 'bleat') {
+        ctx.font = 'italic 12px "Courier New", monospace';
         ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-        ctx.fillText(`[${e.text}]`, screen.x, screen.y);
+        ctx.fillText(e.text, screenX, screenY);
       } else if (e.type === 'blocked') {
-        ctx.font = '12px monospace';
+        ctx.font = '12px "Courier New", monospace';
         ctx.fillStyle = `rgba(180, 180, 180, ${alpha})`;
-        ctx.fillText(`<${e.text}>`, screen.x, screen.y);
+        ctx.fillText(`<${e.text}>`, screenX, screenY);
       } else {
-        ctx.font = 'bold 13px monospace';
+        ctx.font = 'bold 13px "Courier New", monospace';
         ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-        ctx.fillText(e.text, screen.x, screen.y);
+        ctx.fillText(e.text, screenX, screenY);
       }
     }
 
