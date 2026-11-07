@@ -720,7 +720,7 @@ class ValenApp {
       { text: '📜  [2] STORY & CODEX (21 SEALS)', screen: 'STORY_CODEX' },
       { text: '⚡  [3] ARSENAL FORGE & PERKS', screen: 'UPGRADE_SHOP' },
       { text: '🧪  [4] VFX STUDIO (244 EFFECTS)', screen: 'VFX_STUDIO' },
-      { text: '🧬  [5] HOW PIXEL ART IS BUILT', screen: 'PIXEL_RIG' },
+      { text: '🧬  [5] SPRITE ANIMATOR & 3D RIG', screen: 'PIXEL_RIG' },
       { text: '📖  [6] HOW TO PLAY & GUIDE', screen: 'GUIDE' },
       { text: '⚙️  [7] SETTINGS & THEMES', screen: 'SETTINGS' },
     ];
@@ -787,6 +787,11 @@ class ValenApp {
       '',
       'ARSENAL FORGE ([U] / [TAB]):',
       '  • Spend Aether Shards to upgrade Damage Multiplier, Max HP, Energy, Magnet Pull, and Speed.',
+      '',
+      'SPRITE ANIMATOR & 3D RIG ([5] / NAV TAB):',
+      '  • Test 4 Animation States: Run (6 frames), Idle (4 frames), Jump (3 frames), Attack (Straight Punch).',
+      '  • Type Motion Prompts (e.g. "Straight punch animation") to preview live martial moves.',
+      '  • Switch real-time renderers: Pixel Art, Smooth ASCII Matrix (60 FPS), Hybrid, and 3D Skeleton.',
       '',
       'Press [ESC] or click MENU to return.',
     ];
