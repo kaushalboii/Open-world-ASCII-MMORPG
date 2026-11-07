@@ -58,3 +58,4 @@ export class Destructible {
     ctx.restore();
   }
 }
+

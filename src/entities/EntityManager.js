@@ -3,12 +3,16 @@
 
 import { Enemy } from './Enemy.js';
 import { Sheep } from '../world/Sheep.js';
+import { NPC } from './NPC.js';
+import { Destructible } from '../world/Destructibles.js';
 import { TileType, TILE_SIZE } from '../world/WorldMap.js';
 
 export class EntityManager {
   constructor() {
     this.enemies = [];
     this.sheep = [];
+    this.npcs = [];
+    this.destructibles = [];
     this.pickups = []; // { x, y, type: 'gold'|'heart', value, glyph, age }
     this.respawnTimer = 0;
   }
@@ -32,7 +36,37 @@ export class EntityManager {
       }
     }
 
-    // 2. Spawn Rogue Knights & Spearmen guarding paths and outskirts
+    // 2. Spawn Interactive NPCs
+    // King in the Castle Keep
+    this.npcs.push(new NPC(35 * TILE_SIZE + 8, 17 * TILE_SIZE + 8, 'King Elden', 'king', 'K'));
+    // Blacksmith at the village forge
+    this.npcs.push(new NPC(65 * TILE_SIZE + 8, 32 * TILE_SIZE + 8, 'Smith Brand', 'blacksmith', 'B'));
+    // Shepherd in the central meadow
+    this.npcs.push(new NPC(54 * TILE_SIZE + 8, 42 * TILE_SIZE + 8, 'Old Shepherd', 'shepherd', 'S'));
+
+    // 3. Spawn Smashable Crates, Barrels, and Treasure Chests
+    const destructibleSpawns = [
+      // Castle Treasure
+      { x: 26, y: 15, type: 'chest' },
+      { x: 43, y: 15, type: 'chest' },
+      { x: 27, y: 24, type: 'crate' },
+      { x: 42, y: 24, type: 'barrel' },
+      // Village Crates & Barrels
+      { x: 63, y: 31, type: 'barrel' },
+      { x: 68, y: 31, type: 'crate' },
+      { x: 75, y: 29, type: 'crate' },
+      { x: 78, y: 43, type: 'barrel' },
+      // Secret Island Chest (Southwest islet)
+      { x: 24, y: 60, type: 'chest' },
+      // Eastern Grove Chest
+      { x: 88, y: 52, type: 'chest' }
+    ];
+
+    for (const d of destructibleSpawns) {
+      this.destructibles.push(new Destructible(d.x * TILE_SIZE + 8, d.y * TILE_SIZE + 8, d.type));
+    }
+
+    // 4. Spawn Rogue Knights & Spearmen guarding paths and outskirts
     const enemySpawns = [
       // Castle guard patrol
       { x: 30, y: 28, type: 'knight' },
@@ -62,7 +96,7 @@ export class EntityManager {
       s.update(dt, worldMap, player, damageText, particles);
     }
 
-    // 2. Update Enemies
+    // 2. Update Enemies & Check Sword Collision
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       e.update(dt, player, worldMap, camera, particles, damageText);
@@ -88,6 +122,15 @@ export class EntityManager {
 
       if (e.isDead) {
         this.enemies.splice(i, 1);
+      }
+    }
+
+    // 2b. Check sword collision with destructibles (crates, barrels, chests)
+    if (player.isSlashing && player.activeSlashArc) {
+      for (const d of this.destructibles) {
+        if (!d.isBroken && player.activeSlashArc.checkHit(d.x, d.y, d.radius)) {
+          d.smash(player, this, particles, damageText, camera);
+        }
       }
     }
 
@@ -167,8 +210,13 @@ export class EntityManager {
     }
   }
 
-  render(ctx, camera) {
-    // 1. Render Pickups
+  render(ctx, camera, player = null) {
+    // 1. Render Destructibles (Crates, Barrels, Chests)
+    for (const d of this.destructibles) {
+      d.render(ctx, camera);
+    }
+
+    // 2. Render Pickups
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -183,12 +231,17 @@ export class EntityManager {
     }
     ctx.restore();
 
-    // 2. Render Sheep
+    // 3. Render Interactive NPCs
+    for (const npc of this.npcs) {
+      npc.render(ctx, camera, player);
+    }
+
+    // 4. Render Sheep
     for (const s of this.sheep) {
       s.render(ctx, camera);
     }
 
-    // 3. Render Enemies
+    // 5. Render Enemies
     for (const e of this.enemies) {
       e.render(ctx, camera);
     }

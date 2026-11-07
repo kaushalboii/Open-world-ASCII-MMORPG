@@ -79,8 +79,8 @@ export class Renderer {
       }
     }
 
-    // 4. Render Entities (Sheep, Enemies, Pickups)
-    entityManager.render(this.ctx, camera);
+    // 4. Render Entities (Sheep, Enemies, Pickups, NPCs, Destructibles)
+    entityManager.render(this.ctx, camera, player);
 
     // 5. Render Player
     player.render(this.ctx, camera);

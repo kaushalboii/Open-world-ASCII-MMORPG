@@ -92,3 +92,4 @@ export class NPC {
     ctx.restore();
   }
 }
+

@@ -93,3 +93,4 @@ export class MiniMap {
     ctx.restore();
   }
 }
+

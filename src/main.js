@@ -10,6 +10,7 @@ import { EntityManager } from './entities/EntityManager.js';
 import { ParticleEngine } from './vfx/ParticleEngine.js';
 import { DamageTextManager } from './combat/DamageText.js';
 import { MiniMap } from './ui/MiniMap.js';
+import { DialogueBox } from './ui/DialogueBox.js';
 import { soundSynth } from './audio/SoundSynth.js';
 
 class Game {
@@ -23,6 +24,7 @@ class Game {
     this.damageText = new DamageTextManager();
     this.worldMap = new WorldMap(110, 80);
     this.miniMap = new MiniMap(this.worldMap);
+    this.dialogueBox = new DialogueBox();
 
     // Spawn player in the central courtyard near the road
     this.spawnPlayerX = 50 * TILE_SIZE;
@@ -97,9 +99,26 @@ class Game {
       if (muteBtn) muteBtn.textContent = isMuted ? 'UNMUTE AUDIO' : 'MUTE AUDIO';
     }
 
+    // Handle NPC interaction (E key or Click when near NPC)
+    if (!this.dialogueBox.isOpen && (this.input.keys.block || this.input.justPressed.slash)) {
+      for (const npc of this.entityManager.npcs) {
+        if (Math.hypot(this.player.x - npc.x, this.player.y - npc.y) <= npc.promptDistance) {
+          npc.interact(this.player, this.dialogueBox, this.damageText);
+          break;
+        }
+      }
+    }
+
+    // Update Dialogue Box if active
+    if (this.dialogueBox.isOpen) {
+      this.dialogueBox.update(dt, this.input);
+    }
+
     // Update Game Systems
     this.worldMap.update(dt);
-    this.player.update(dt, this.input, this.worldMap, this.camera, this.particles, this.damageText);
+    if (!this.dialogueBox.isOpen) {
+      this.player.update(dt, this.input, this.worldMap, this.camera, this.particles, this.damageText);
+    }
     this.entityManager.update(dt, this.player, this.worldMap, this.camera, this.particles, this.damageText);
     this.particles.update(dt);
     this.damageText.update(dt);
@@ -122,6 +141,11 @@ class Game {
       dt,
       this.miniMap
     );
+
+    // Render Dialogue Overlay
+    if (this.dialogueBox.isOpen) {
+      this.dialogueBox.render(this.renderer.ctx, this.renderer.width, this.renderer.height);
+    }
 
     requestAnimationFrame(this.loop);
   }
