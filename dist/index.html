@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TINY GLYPHS — PixelFX 2D Action Platformer & Procedural Rig Studio</title>
+  <title>CYBER MARINO — PixelFX Run & Gun Action Platformer</title>
   <style>
     * {
       box-sizing: border-box;
@@ -35,7 +35,8 @@
       letter-spacing: 4px;
       text-transform: uppercase;
       margin-bottom: 3px;
-      text-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+      text-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+      color: #00f0ff;
     }
 
     .tagline {
@@ -74,6 +75,11 @@
       color: #ffffff;
       border-color: #00f0ff;
       box-shadow: 0 0 8px rgba(0, 240, 255, 0.25);
+    }
+
+    .nav-tab.upgrade-highlight {
+      border-color: #ffea00;
+      color: #ffea00;
     }
 
     /* Primary Stage Container */
@@ -289,21 +295,22 @@
       color: #bbbbdd;
     }
   </style>
-  <script type="module" crossorigin src="./assets/index-DNo9rW35.js"></script>
+  <script type="module" crossorigin src="./assets/index-Cc-wP25r.js"></script>
 </head>
 <body>
   <header>
-    <h1>† TINY GLYPHS — PIXEL FX †</h1>
-    <div class="tagline">Procedural 3D Skeletal Rigging • Hugo Duprez Fluid VFX • 244 Animated Effects</div>
+    <h1>CYBER MARINO: RUN & GUN HUNTER</h1>
+    <div class="tagline">Arcade Run & Gun • Weapon Evolution • Loot Drops • 244 Procedural Pixel Effects</div>
   </header>
 
   <!-- Clean Top Navigation Tabs -->
   <div class="nav-tabs">
     <button class="nav-tab active" id="tabMenu">🏠 MENU</button>
-    <button class="nav-tab" id="tabPlay">▶ PLAY MISSION</button>
+    <button class="nav-tab" id="tabPlay">▶ PLAY GAME</button>
+    <button class="nav-tab upgrade-highlight" id="tabShop">⚡ UPGRADE ARSENAL</button>
     <button class="nav-tab" id="tabVfx">🧪 VFX STUDIO (244)</button>
     <button class="nav-tab" id="tabRig">🧬 HOW PIXEL ART IS BUILT</button>
-    <button class="nav-tab" id="tabGuide">📖 HOW TO PLAY</button>
+    <button class="nav-tab" id="tabGuide">📖 GUIDE</button>
     <button class="nav-tab" id="tabSettings">⚙️ SETTINGS</button>
   </div>
 
@@ -314,9 +321,7 @@
 
   <!-- VFX Studio Interactive Controls (Active in VFX STUDIO tab) -->
   <div id="studioControls">
-    <div class="studio-row" id="catBar">
-      <!-- Category buttons generated dynamically -->
-    </div>
+    <div class="studio-row" id="catBar"></div>
     <div class="studio-row">
       <select id="effectSelect" class="studio-select"></select>
       <button class="tool-btn" id="studioPlayBtn">⏸ PAUSE</button>
@@ -365,13 +370,14 @@
     <div class="dpad">
       <button class="touch-btn" id="btnLeft">◀ LEFT</button>
       <button class="touch-btn" id="btnRight">RIGHT ▶</button>
-      <button class="touch-btn" id="btnJump">JUMP</button>
+      <button class="touch-btn" id="btnJump">JUMP / STOMP</button>
     </div>
     <div class="action-pad">
-      <button class="touch-btn" id="btnPunch">⚔️ COMBO</button>
+      <button class="touch-btn" id="btnPunch">⚔️ ATTACK/SHOOT</button>
+      <button class="touch-btn" id="btnWeapon">🔄 WEAPON (Q)</button>
       <button class="touch-btn" id="btnDash">⚡ DASH</button>
       <button class="touch-btn" id="btnFlask">🧪 FLASK</button>
-      <button class="touch-btn" id="btnStomp">💥 STOMP</button>
+      <button class="touch-btn" id="btnShop">🛒 SHOP</button>
     </div>
   </div>
 
@@ -385,14 +391,14 @@
 
   <!-- Footer Quick Guide -->
   <div class="footer-guide">
-    <strong>[ KEYBOARD CONTROLS ]</strong>
+    <strong>[ CONTROLS ]</strong>
     <strong>A / D</strong>: Run |
-    <strong>W / Space</strong>: Jump (Double Jump!) |
-    <strong>J / Z</strong>: Sword Combo |
-    <strong>L / C</strong>: Dash Strike (Invulnerable!) |
-    <strong>K / E</strong>: Poison Cloud Flask |
-    <strong>U</strong>: Earth Stomp |
-    <strong>O</strong>: Lightning Call |
+    <strong>W / Space</strong>: Jump (Stomp enemy heads!) |
+    <strong>J / Z</strong>: Attack / Shoot |
+    <strong>Q</strong>: Switch Weapon |
+    <strong>U / Tab</strong>: Upgrade Arsenal |
+    <strong>L / C</strong>: Dash Strike |
+    <strong>K / E</strong>: Poison Flask |
     <strong>ESC</strong>: Pause
   </div>
 

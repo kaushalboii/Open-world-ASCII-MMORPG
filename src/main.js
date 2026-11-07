@@ -1,26 +1,27 @@
-// Main Orchestrator for Tiny Glyphs — PixelFX Edition
-// Coordinates Game Combat Platformer, VFX Studio (244 effects), Rig Explorer, and UI Navigation
+// Main Orchestrator for Cyber Marino: Run & Gun Hunter
+// Features Weapon Evolution (Knife -> Sword -> Blaster Gun -> Rocket Launcher -> Lightning),
+// Mario-style Enemy Stomping & Star Power, Bouncy Loot Drops, Upgrade Shop, and 244-effect VFX Studio!
 
 import { PixelPlayer } from './pixelfx/game/PixelPlayer.js';
 import { PixelWorld } from './pixelfx/game/PixelWorld.js';
+import { UpgradeShop } from './pixelfx/game/UpgradeShop.js';
 import { StudioManager } from './pixelfx/studio/StudioManager.js';
 import { RigExplorer } from './pixelfx/studio/RigExplorer.js';
 import { Input } from './engine/Input.js';
 import { soundSynth } from './audio/SoundSynth.js';
 import { createFrame, clearFrame, composite } from './pixelfx/core/index.js';
 
-class TinyGlyphsApp {
+class CyberMarinoApp {
   constructor() {
     this.canvas = document.getElementById('gameCanvas');
     this.ctx = this.canvas.getContext('2d', { alpha: false });
 
-    // Target Canvas: 960x540 (16:9)
     this.canvas.width = 960;
     this.canvas.height = 540;
 
     this.input = new Input(this.canvas);
 
-    // Screen States: 'MENU', 'PLAYING', 'VFX_STUDIO', 'PIXEL_RIG', 'GUIDE', 'SETTINGS', 'PAUSED', 'VICTORY', 'GAMEOVER'
+    // Screen States: 'MENU', 'PLAYING', 'UPGRADE_SHOP', 'VFX_STUDIO', 'PIXEL_RIG', 'GUIDE', 'SETTINGS', 'PAUSED', 'VICTORY', 'GAMEOVER'
     this.screen = 'MENU';
     this.theme = 'bw'; // 'bw' (Monochrome B&W), 'color' (Cyber Neon), 'green' (Phosphor Matrix)
     this.crt = false;
@@ -37,6 +38,7 @@ class TinyGlyphsApp {
 
     this.player = new PixelPlayer(60, 148);
     this.world = new PixelWorld(this.stageW, this.stageH);
+    this.shop = new UpgradeShop();
 
     // Studio & Rig Modules
     this.studioOffscreen = document.createElement('canvas');
@@ -53,17 +55,27 @@ class TinyGlyphsApp {
     this.initStudioDOM();
     this.initRigDOM();
 
-    // Start render loop
+    // Handle clicks inside canvas (e.g. for Upgrade Shop)
+    this.canvas.addEventListener('click', (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left) * (this.canvas.width / rect.width);
+      const mouseY = (e.clientY - rect.top) * (this.canvas.height / rect.height);
+
+      if (this.screen === 'UPGRADE_SHOP') {
+        this.shop.handleClick(mouseX, mouseY, this.player, soundSynth);
+      }
+    });
+
     requestAnimationFrame((t) => this.loop(t));
   }
 
   setScreen(newScreen) {
     this.screen = newScreen;
 
-    // Update top nav tabs
     const tabMap = {
       MENU: 'tabMenu',
       PLAYING: 'tabPlay',
+      UPGRADE_SHOP: 'tabShop',
       VFX_STUDIO: 'tabVfx',
       PIXEL_RIG: 'tabRig',
       GUIDE: 'tabGuide',
@@ -74,32 +86,29 @@ class TinyGlyphsApp {
     const activeTab = document.getElementById(tabMap[newScreen]);
     if (activeTab) activeTab.classList.add('active');
 
-    // Contextual DOM Panels
     const studioControls = document.getElementById('studioControls');
     const rigControls = document.getElementById('rigControls');
 
     if (studioControls) studioControls.style.display = newScreen === 'VFX_STUDIO' ? 'flex' : 'none';
     if (rigControls) rigControls.style.display = newScreen === 'PIXEL_RIG' ? 'flex' : 'none';
 
-    // Audio cues
     if (newScreen === 'PLAYING') {
       soundSynth.startMusic();
     }
   }
 
   initUI() {
-    // Navigation Tabs
     document.getElementById('tabMenu').addEventListener('click', () => this.setScreen('MENU'));
     document.getElementById('tabPlay').addEventListener('click', () => {
       if (this.player.hp <= 0) this.restartMission();
       this.setScreen('PLAYING');
     });
+    document.getElementById('tabShop').addEventListener('click', () => this.setScreen('UPGRADE_SHOP'));
     document.getElementById('tabVfx').addEventListener('click', () => this.setScreen('VFX_STUDIO'));
     document.getElementById('tabRig').addEventListener('click', () => this.setScreen('PIXEL_RIG'));
     document.getElementById('tabGuide').addEventListener('click', () => this.setScreen('GUIDE'));
     document.getElementById('tabSettings').addEventListener('click', () => this.setScreen('SETTINGS'));
 
-    // Bottom Toolbar Buttons
     const themeBtn = document.getElementById('themeBtn');
     themeBtn.addEventListener('click', () => {
       const themes = ['bw', 'color', 'green'];
@@ -135,8 +144,14 @@ class TinyGlyphsApp {
       if (e.code === 'KeyT') themeBtn.click();
       if (e.code === 'KeyB') bgmBtn.click();
       if (e.code === 'KeyM') muteBtn.click();
+      if (e.code === 'KeyU' || e.code === 'Tab') {
+        e.preventDefault();
+        if (this.screen === 'UPGRADE_SHOP') this.setScreen('PLAYING');
+        else this.setScreen('UPGRADE_SHOP');
+      }
       if (e.code === 'Escape') {
-        if (this.screen === 'PLAYING') this.setScreen('PAUSED');
+        if (this.screen === 'UPGRADE_SHOP') this.setScreen('PLAYING');
+        else if (this.screen === 'PLAYING') this.setScreen('PAUSED');
         else if (this.screen === 'PAUSED') this.setScreen('PLAYING');
         else this.setScreen('MENU');
       }
@@ -167,7 +182,22 @@ class TinyGlyphsApp {
     bindBtn('btnPunch', 'TouchPunch');
     bindBtn('btnDash', 'TouchDash');
     bindBtn('btnFlask', 'TouchFlask');
-    bindBtn('btnStomp', 'TouchStomp');
+
+    const btnWeapon = document.getElementById('btnWeapon');
+    if (btnWeapon) {
+      btnWeapon.addEventListener('click', () => {
+        this.player.cycleWeapon();
+        soundSynth.playSwordSlash();
+      });
+    }
+
+    const btnShop = document.getElementById('btnShop');
+    if (btnShop) {
+      btnShop.addEventListener('click', () => {
+        if (this.screen === 'UPGRADE_SHOP') this.setScreen('PLAYING');
+        else this.setScreen('UPGRADE_SHOP');
+      });
+    }
   }
 
   initStudioDOM() {
@@ -175,7 +205,6 @@ class TinyGlyphsApp {
     const effectSelect = document.getElementById('effectSelect');
     const metaDesc = document.getElementById('effectMetaDesc');
 
-    // Populate category buttons
     this.studio.categories.forEach((cat) => {
       const btn = document.createElement('button');
       btn.className = `cat-btn ${cat.id === this.studio.activeCategory ? 'active' : ''}`;
@@ -310,7 +339,6 @@ class TinyGlyphsApp {
     const dt = Math.min((currentTime - this.lastTime) / 1000, 0.1);
     this.lastTime = currentTime;
 
-    // Render active screen
     switch (this.screen) {
       case 'MENU':
         this.renderMenu(dt);
@@ -318,6 +346,9 @@ class TinyGlyphsApp {
       case 'PLAYING':
         this.updateGame(dt);
         this.renderGame();
+        break;
+      case 'UPGRADE_SHOP':
+        this.shop.draw(this.ctx, this.canvas.width, this.canvas.height, this.player);
         break;
       case 'VFX_STUDIO':
         this.studio.step(dt);
@@ -351,38 +382,58 @@ class TinyGlyphsApp {
   updateGame(dt) {
     this.missionTime += dt;
 
-    // Hit reaction handler for player moves
-    const onMeleeHit = (hit, player) => {
+    // Hit reaction handler for player attacks
+    const onMeleeHit = (hit, player, weaponType) => {
       soundSynth.playHit();
-      const hitRadius = hit.straw ? 36 : 28;
-      const hitDmg = hit.straw ? 45 : 24;
+      let hitRadius = 32;
+      let hitDmg = 28;
+
+      if (weaponType === 'knife') {
+        hitRadius = 24;
+        hitDmg = 18;
+      } else if (weaponType === 'sword') {
+        hitRadius = 36;
+        hitDmg = 35;
+      } else if (weaponType === 'pistol') {
+        hitRadius = 160; // Long-range projectile line!
+        hitDmg = 25;
+      } else if (weaponType === 'rocket') {
+        hitRadius = 180; // Rocket flight
+        hitDmg = 65;
+        this.world.spawnExplosion(player.x + player.facing * 80, player.y - 10);
+      } else if (weaponType === 'lightning') {
+        hitRadius = 140;
+        hitDmg = 75;
+      }
+
+      hitDmg = Math.floor(hitDmg * player.damageMultiplier);
 
       for (const e of this.world.enemies) {
         if (!e.isDead && Math.hypot(e.x - player.x, e.y - player.y) <= hitRadius) {
           e.takeDamage(hitDmg);
-          this.world.addFloatingText(hit.straw ? `CRIT ${hitDmg}!` : `-${hitDmg}`, e.x, e.y - 20, hit.straw ? '#ffcc00' : '#ffffff');
+          this.world.addFloatingText(`-${hitDmg}`, e.x, e.y - 20, '#ffffff');
           this.world.spawnCrit(e.x, e.y - 12);
 
           if (e.isDead) {
             player.kills++;
-            player.score += e.type === 'warlord' ? 1000 : 150;
+            player.score += e.type === 'warlord' ? 1500 : 150;
+            this.world.spawnLoot(e.x, e.y, e.type);
+
             if (e.type === 'warlord') {
               soundSynth.playVictory();
-              setTimeout(() => this.setScreen('VICTORY'), 1200);
+              setTimeout(() => this.setScreen('VICTORY'), 1400);
             }
           }
         }
       }
     };
 
-    // Poison cloud spawner
     const spawnPoison = (x, y) => {
       this.world.spawnPoisonCloud(x, y);
     };
 
-    // Update Player & World
     this.player.update(dt, this.input, this.world, onMeleeHit, spawnPoison);
-    this.world.update(dt, this.player);
+    this.world.update(dt, this.player, soundSynth);
 
     if (this.player.hp <= 0) {
       soundSynth.playGameOver();
@@ -393,24 +444,18 @@ class TinyGlyphsApp {
   renderGame() {
     clearFrame(this.gameFrame);
 
-    // Draw world platforms, hazards, enemies, back FX
     this.world.draw(this.gameFrame, this.theme);
-
-    // Draw player with procedural rig & active moves
     this.player.draw(this.gameFrame, this.theme);
 
-    // Composite 320x180 frame
     composite(this.gameFrame, this.gameImgData.data, null);
     this.gameOffscreenCtx.putImageData(this.gameImgData, 0, 0);
 
-    // Apply Camera Shake from active act
     let sx = 0;
     let sy = 0;
     if (this.player.activeAct) {
       [sx, sy] = this.player.activeAct.shake || [0, 0];
     }
 
-    // Render scaled up 3x to 960x540 canvas
     this.ctx.save();
     this.ctx.imageSmoothingEnabled = false;
 
@@ -423,10 +468,7 @@ class TinyGlyphsApp {
     this.ctx.drawImage(this.gameOffscreen, sx * 3, sy * 3, this.canvas.width, this.canvas.height);
     this.ctx.restore();
 
-    // Floating combat texts
     this.world.drawOverlay(this.ctx, 3, 3);
-
-    // Render Crisp HUD
     this.renderHUD();
   }
 
@@ -436,42 +478,51 @@ class TinyGlyphsApp {
     ctx.font = 'bold 12px "Courier New", monospace';
 
     // Top HUD Bar Background
-    ctx.fillStyle = 'rgba(10, 10, 16, 0.85)';
-    ctx.fillRect(16, 12, 928, 42);
+    ctx.fillStyle = 'rgba(10, 10, 16, 0.88)';
+    ctx.fillRect(16, 10, 928, 44);
     ctx.strokeStyle = '#333348';
-    ctx.strokeRect(16, 12, 928, 42);
+    ctx.strokeRect(16, 10, 928, 44);
 
-    // Health Bar
+    // HP Bar
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('HP:', 28, 38);
+    ctx.fillText('HP:', 28, 36);
     const hpRatio = this.player.hp / this.player.maxHp;
     ctx.fillStyle = '#221111';
-    ctx.fillRect(60, 24, 150, 18);
+    ctx.fillRect(55, 22, 130, 18);
     ctx.fillStyle = this.theme === 'bw' ? '#ffffff' : '#ff3344';
-    ctx.fillRect(60, 24, 150 * hpRatio, 18);
+    ctx.fillRect(55, 22, 130 * hpRatio, 18);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`${Math.ceil(this.player.hp)}/100`, 110, 38);
+    ctx.fillText(`${Math.ceil(this.player.hp)}/${this.player.maxHp}`, 90, 36);
 
     // Energy Bar
-    ctx.fillText('ENERGY:', 230, 38);
+    ctx.fillText('NRG:', 198, 36);
     const nrgRatio = this.player.energy / this.player.maxEnergy;
     ctx.fillStyle = '#112222';
-    ctx.fillRect(295, 24, 120, 18);
+    ctx.fillRect(235, 22, 100, 18);
     ctx.fillStyle = this.theme === 'bw' ? '#cccccc' : '#00f0ff';
-    ctx.fillRect(295, 24, 120 * nrgRatio, 18);
+    ctx.fillRect(235, 22, 100 * nrgRatio, 18);
+
+    // Level & XP
+    ctx.fillStyle = '#76ff03';
+    ctx.fillText(`LVL ${this.player.level} (${this.player.xp}/${this.player.xpNeeded} XP)`, 350, 36);
+
+    // Coins / Rewards
+    ctx.fillStyle = '#ffea00';
+    ctx.fillText(`🪙 ${this.player.coins}`, 510, 36);
+
+    // Active Weapon Badge
+    const weaponIcons = { knife: '🗡️ KNIFE', sword: '⚔️ SWORD', pistol: '🔫 BLASTER', rocket: '🚀 ROCKET', lightning: '⚡ LIGHTNING' };
+    ctx.fillStyle = '#00f0ff';
+    ctx.fillText(`[ ${weaponIcons[this.player.currentWeapon] || 'WEAPON'} ] (Q)`, 610, 36);
 
     // Flasks
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`FLASKS: ${'🧪'.repeat(this.player.flasks)}`, 435, 38);
+    ctx.fillText(`FLASKS: ${'🧪'.repeat(this.player.flasks)}`, 800, 36);
 
-    // Score & Kills
-    ctx.fillText(`KILLS: ${this.player.kills}`, 620, 38);
-    ctx.fillText(`SCORE: ${this.player.score}`, 720, 38);
-
-    // Active Move Banner
-    if (this.player.activeMoveName) {
-      ctx.fillStyle = '#00f0ff';
-      ctx.fillText(`[ ${this.player.activeMoveName.toUpperCase()} ]`, 830, 38);
+    // Star Power Banner if active
+    if (this.player.starPowerTimer > 0) {
+      ctx.fillStyle = '#ffff00';
+      ctx.fillText(`★ STAR POWER (${this.player.starPowerTimer.toFixed(1)}s) ★`, 400, 78);
     }
 
     // Boss Bar if Goliath is alive
@@ -488,7 +539,7 @@ class TinyGlyphsApp {
 
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      ctx.fillText(`CYBER WARLORD GOLIATH — ${Math.ceil(boss.hp)} HP`, 480, 506);
+      ctx.fillText(`CYBER WARLORD MECH — ${Math.ceil(boss.hp)} HP`, 480, 506);
     }
 
     ctx.restore();
@@ -500,7 +551,6 @@ class TinyGlyphsApp {
     ctx.fillStyle = '#07070a';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Background cyber grid lines
     ctx.strokeStyle = '#181824';
     ctx.lineWidth = 1;
     for (let x = 0; x < this.canvas.width; x += 40) {
@@ -510,45 +560,42 @@ class TinyGlyphsApp {
       ctx.stroke();
     }
 
-    // Title
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 36px "Courier New", monospace';
-    ctx.fillText('† TINY GLYPHS †', 480, 140);
-
     ctx.fillStyle = '#00f0ff';
-    ctx.font = '14px "Courier New", monospace';
-    ctx.fillText('PROCEDURAL PIXEL ART & FLUID VFX EDITION', 480, 175);
-    ctx.fillStyle = '#8888aa';
-    ctx.fillText('Powered by patch-gg/pixelfx • Hugo Duprez (Sprite Fusion) • Pure Web Audio', 480, 200);
+    ctx.font = 'bold 34px "Courier New", monospace';
+    ctx.fillText('CYBER MARINO: RUN & GUN HUNTER', 480, 130);
 
-    // Menu Buttons
+    ctx.fillStyle = '#ffea00';
+    ctx.font = '13px "Courier New", monospace';
+    ctx.fillText('ARCADE RUN & GUN • WEAPON EVOLUTION • ENEMY LOOT DROPS', 480, 165);
+    ctx.fillStyle = '#8888aa';
+    ctx.fillText('Powered by patch-gg/pixelfx • Hugo Duprez (Sprite Fusion) • Web Audio', 480, 190);
+
     const options = [
-      { text: '▶  [1] PLAY COMBAT MISSION', screen: 'PLAYING' },
-      { text: '🧪  [2] VFX STUDIO (244 EFFECTS)', screen: 'VFX_STUDIO' },
-      { text: '🧬  [3] HOW PIXEL ART IS BUILT', screen: 'PIXEL_RIG' },
-      { text: '📖  [4] HOW TO PLAY & GUIDE', screen: 'GUIDE' },
-      { text: '⚙️  [5] SETTINGS & THEMES', screen: 'SETTINGS' },
+      { text: '▶  [1] PLAY GAME MISSION', screen: 'PLAYING' },
+      { text: '⚡  [2] UPGRADE ARSENAL & PERKS', screen: 'UPGRADE_SHOP' },
+      { text: '🧪  [3] VFX STUDIO (244 EFFECTS)', screen: 'VFX_STUDIO' },
+      { text: '🧬  [4] HOW PIXEL ART IS BUILT', screen: 'PIXEL_RIG' },
+      { text: '📖  [5] HOW TO PLAY & GUIDE', screen: 'GUIDE' },
+      { text: '⚙️  [6] SETTINGS & THEMES', screen: 'SETTINGS' },
     ];
 
     options.forEach((opt, i) => {
-      const y = 260 + i * 46;
+      const y = 240 + i * 44;
       ctx.fillStyle = '#12121c';
-      ctx.fillRect(280, y - 22, 400, 34);
+      ctx.fillRect(280, y - 20, 400, 32);
       ctx.strokeStyle = '#333348';
-      ctx.strokeRect(280, y - 22, 400, 34);
+      ctx.strokeRect(280, y - 20, 400, 32);
 
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 14px "Courier New", monospace';
+      ctx.font = 'bold 13px "Courier New", monospace';
       ctx.fillText(opt.text, 480, y);
     });
 
-    // Quick start hint
     ctx.fillStyle = '#777788';
     ctx.font = '12px "Courier New", monospace';
-    ctx.fillText('Press [SPACE] or Click to Play • [T] Toggle Theme • [B] Toggle Music', 480, 505);
+    ctx.fillText('Press [SPACE] to Play • [Q] Switch Weapon • [U] Arsenal Shop • [T] Theme', 480, 510);
 
-    // Click to start
     if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) {
       this.setScreen('PLAYING');
     }
@@ -564,28 +611,30 @@ class TinyGlyphsApp {
 
     ctx.fillStyle = '#00f0ff';
     ctx.font = 'bold 22px "Courier New", monospace';
-    ctx.fillText('📖 HOW TO PLAY & COMBAT SYSTEM', 40, 50);
+    ctx.fillText('📖 CYBER MARINO: GAMEPLAY & UPGRADE GUIDE', 40, 45);
 
     ctx.fillStyle = '#cccccc';
-    ctx.font = '12.5px "Courier New", monospace';
-    let y = 90;
+    ctx.font = '12px "Courier New", monospace';
+    let y = 80;
     const lines = [
-      'MISSION OBJECTIVE:',
-      '  Infiltrate the cyber wasteland, defeat mutant patrols, avoid toxic hazard pits,',
-      '  and eliminate Goliath the Cyber Warlord Boss.',
+      'MARIO & SHOOTING GAMEPLAY:',
+      '  • Run & Jump: Use [A / D] to run and [W / Space] to jump.',
+      '  • Enemy Head Stomp: Fall onto enemies from above to crush them and bounce high!',
+      '  • Mystery Blocks: Jump into floating [ ? ] blocks from below to shower lucky coins & loot!',
+      '  • Power Star Mode: Rare stars give Mario-style rainbow invulnerability to smash foes on touch!',
       '',
-      'COMBAT ABILITIES (PixelFX Acted Moves):',
-      '  • [A / D] or [Arrows]     : Run with realistic foot dust particles',
-      '  • [W / Space]             : Jump & Double Jump to clear hazard pits',
-      '  • [J / Z] or Click        : Sword Combo (3-hit flurry with impact freeze frame)',
-      '  • [L / C] or Shift        : Dash Strike (Invulnerable blur with glowing after-images)',
-      '  • [K / E]                 : Poison Flask (Spawns Hugo Duprez toxic gas cloud DoT)',
-      '  • [U]                     : Earth Stomp (Shockwave that damages grounded enemies)',
-      '  • [O]                     : Lightning Call (Celestial thunderbolt strike)',
+      'ENEMY LOOT DROPS & REWARDS:',
+      '  • Defeated enemies drop bouncy Gold Coins (🪙), XP Orbs (⚡), Heart Medkits (❤️), and Stars!',
+      '  • Walk near drops to pull them in (upgrade your Magnet Radius to suck up loot from far away).',
+      '  • Gaining XP levels you up, increasing Max HP, Max Energy, and Base Damage.',
       '',
-      'FLUID VFX & PARTICLE PHYSICS:',
-      '  • Poison gas clouds billow dynamically with multi-sheet fluid simulation.',
-      '  • Every hit triggers authentic contact stop, spring reaction, and screen shake.',
+      'WEAPON EVOLUTION & ARSENAL SHOP ([U] or [TAB]):',
+      '  • Combat Dagger / Knife   : Rapid 6-hit flurry stabs with spark bursts (ultra-fast).',
+      '  • Cyber Katana / Sword    : 3-stroke heavy blade combo with wide cleaving arcs.',
+      '  • Laser Blaster / Pistol  : Aimed 3-shot laser projectiles crossing the screen.',
+      '  • Rocket Bazooka          : Fires devastating area-of-effect explosive missiles.',
+      '  • Celestial Lightning     : Summons screen-clearing lightning storm.',
+      '  • Press [Q] to switch equipped weapons anytime in battle!',
       '',
       'Press [ESC] or click MENU to return.',
     ];
@@ -597,7 +646,7 @@ class TinyGlyphsApp {
         ctx.fillStyle = '#bbbbcc';
       }
       ctx.fillText(line, 40, y);
-      y += 24;
+      y += 22;
     }
 
     ctx.restore();
@@ -644,7 +693,7 @@ class TinyGlyphsApp {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 28px "Courier New", monospace';
-    ctx.fillText('MISSION PAUSED', 480, 240);
+    ctx.fillText('GAME PAUSED', 480, 240);
 
     ctx.fillStyle = '#00f0ff';
     ctx.font = '14px "Courier New", monospace';
@@ -662,15 +711,19 @@ class TinyGlyphsApp {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00ff88';
     ctx.font = 'bold 36px "Courier New", monospace';
-    ctx.fillText('† MISSION ACCOMPLISHED †', 480, 210);
+    ctx.fillText('MISSION COMPLETE!', 480, 210);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '16px "Courier New", monospace';
-    ctx.fillText(`CYBER WARLORD DEFEATED!`, 480, 255);
-    ctx.fillText(`Score: ${this.player.score} | Kills: ${this.player.kills} | Time: ${Math.floor(this.missionTime)}s`, 480, 290);
+    ctx.fillText(`CYBER WARLORD MECH DESTROYED!`, 480, 255);
+    ctx.fillText(
+      `Score: ${this.player.score} | Coins: ${this.player.coins} | Kills: ${this.player.kills} | Level: ${this.player.level}`,
+      480,
+      290
+    );
 
     ctx.fillStyle = '#00f0ff';
-    ctx.fillText('Press [SPACE] to Play Again or Explore VFX Studio', 480, 340);
+    ctx.fillText('Press [SPACE] to Play Again or Open Upgrade Arsenal', 480, 340);
 
     if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) {
       this.restartMission();
@@ -689,21 +742,21 @@ class TinyGlyphsApp {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff3344';
     ctx.font = 'bold 36px "Courier New", monospace';
-    ctx.fillText('† MISSION FAILED †', 480, 220);
+    ctx.fillText('GAME OVER', 480, 220);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '14px "Courier New", monospace';
-    ctx.fillText('Press [SPACE] or Click to Respawn', 480, 270);
+    ctx.fillText('Press [SPACE] or Click to Respawn with your Upgrades', 480, 270);
 
     if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) {
-      this.restartMission();
+      this.player.hp = this.player.maxHp;
+      this.player.energy = this.player.maxEnergy;
       this.setScreen('PLAYING');
     }
     ctx.restore();
   }
 }
 
-// Start game instance on DOM ready
 window.addEventListener('DOMContentLoaded', () => {
-  new TinyGlyphsApp();
+  new CyberMarinoApp();
 });
