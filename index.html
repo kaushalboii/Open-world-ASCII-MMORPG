@@ -115,19 +115,66 @@
     .instructions strong {
       color: #ffffff;
     }
+
+    .mobile-controls {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 960px;
+      margin-top: 14px;
+      gap: 12px;
+      user-select: none;
+      touch-action: manipulation;
+    }
+
+    .dpad, .action-pad {
+      display: flex;
+      gap: 8px;
+    }
+
+    .touch-btn {
+      background: #0d0d0d;
+      color: #ffffff;
+      border: 1px solid #ffffff;
+      padding: 12px 18px;
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .touch-btn:active {
+      background: #ffffff;
+      color: #000000;
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>† TINY GLYPHS †</h1>
-    <div class="tagline">An Open-World ASCII Action Adventure</div>
+    <div class="tagline">Pure Monospace ASCII 2D Action Platformer</div>
   </header>
 
   <div id="gameContainer">
     <canvas id="gameCanvas"></canvas>
   </div>
 
+  <div class="mobile-controls">
+    <div class="dpad">
+      <button class="touch-btn" id="btnLeft">◀ LEFT</button>
+      <button class="touch-btn" id="btnRight">RIGHT ▶</button>
+    </div>
+    <div class="action-pad">
+      <button class="touch-btn" id="btnJump">JUMP</button>
+      <button class="touch-btn" id="btnPunch">PUNCH</button>
+      <button class="touch-btn" id="btnFlask">FLASK</button>
+    </div>
+  </div>
+
   <div class="toolbar">
+    <button id="guideBtn">HOW TO PLAY (?)</button>
+    <button id="themeBtn">THEME: B&W (T)</button>
     <button id="bgmBtn">MUSIC: ON (B)</button>
     <button id="muteBtn">SFX: ON (M)</button>
     <button id="crtBtn">CRT EFFECT: OFF</button>

@@ -5,6 +5,7 @@ export class AsciiGrid {
   constructor(cols = 100, rows = 34) {
     this.cols = cols;
     this.rows = rows;
+    this.theme = 'bw'; // 'bw', 'green', 'amber'
 
     // Dual buffers for characters and color luminance
     this.chars = [];
@@ -121,12 +122,25 @@ export class AsciiGrid {
     this.drawString(col, row + h - 1, bot, color);
   }
 
+  cycleTheme() {
+    if (this.theme === 'bw') this.theme = 'green';
+    else if (this.theme === 'green') this.theme = 'amber';
+    else this.theme = 'bw';
+    return this.theme;
+  }
+
   // Render character matrix to high-performance Canvas
   renderToCanvas(ctx, canvasWidth, canvasHeight) {
     const charW = canvasWidth / this.cols;
     const charH = canvasHeight / this.rows;
 
-    ctx.fillStyle = '#050505';
+    const bgMap = {
+      bw: '#050505',
+      green: '#040d04',
+      amber: '#0d0702'
+    };
+
+    ctx.fillStyle = bgMap[this.theme] || '#050505';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
     ctx.font = `bold ${Math.floor(charH * 0.95)}px monospace`;
@@ -138,7 +152,13 @@ export class AsciiGrid {
       for (let c = 0; c < this.cols; c++) {
         const ch = this.chars[r][c];
         if (ch !== ' ') {
-          ctx.fillStyle = this.colors[r][c] || '#ffffff';
+          if (this.theme === 'green') {
+            ctx.fillStyle = this.colors[r][c] === '#555555' ? '#116611' : '#33ff33';
+          } else if (this.theme === 'amber') {
+            ctx.fillStyle = this.colors[r][c] === '#555555' ? '#774400' : '#ffaa00';
+          } else {
+            ctx.fillStyle = this.colors[r][c] || '#ffffff';
+          }
           ctx.fillText(ch, c * charW + charW / 2, y);
         }
       }
@@ -154,3 +174,4 @@ export class AsciiGrid {
     return output;
   }
 }
+
