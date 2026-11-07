@@ -1,510 +1,709 @@
-// Main Game Flow & Screen Navigation for Tiny Glyphs
-// Structured screen flow: MENU -> PLAYING -> GUIDE -> VFX_ARCHIVE -> SETTINGS -> PAUSED -> VICTORY -> GAMEOVER
+// Main Orchestrator for Tiny Glyphs — PixelFX Edition
+// Coordinates Game Combat Platformer, VFX Studio (244 effects), Rig Explorer, and UI Navigation
 
-import { AsciiGrid } from './engine/AsciiGrid.js';
-import { AsciiNinja } from './entities/AsciiNinja.js';
-import { AsciiWorld } from './world/AsciiWorld.js';
-import { AsciiEnemy } from './entities/AsciiEnemies.js';
-import { AsciiProjectiles } from './vfx/AsciiPoisonVFX.js';
-import { AsciiFeedback } from './combat/AsciiFeedback.js';
+import { PixelPlayer } from './pixelfx/game/PixelPlayer.js';
+import { PixelWorld } from './pixelfx/game/PixelWorld.js';
+import { StudioManager } from './pixelfx/studio/StudioManager.js';
+import { RigExplorer } from './pixelfx/studio/RigExplorer.js';
 import { Input } from './engine/Input.js';
 import { soundSynth } from './audio/SoundSynth.js';
+import { createFrame, clearFrame, composite } from './pixelfx/core/index.js';
 
-class Game {
+class TinyGlyphsApp {
   constructor() {
     this.canvas = document.getElementById('gameCanvas');
     this.ctx = this.canvas.getContext('2d', { alpha: false });
 
+    // Target Canvas: 960x540 (16:9)
     this.canvas.width = 960;
     this.canvas.height = 540;
 
-    // 100 cols x 34 rows pure ASCII grid
-    this.grid = new AsciiGrid(100, 34);
     this.input = new Input(this.canvas);
 
-    // Screen State Machine: 'MENU', 'PLAYING', 'GUIDE', 'VFX_ARCHIVE', 'SETTINGS', 'PAUSED', 'VICTORY', 'GAMEOVER'
-    this.currentScreen = 'MENU';
-    this.menuSelection = 0; // 0: Start, 1: Guide, 2: VFX Archive, 3: Settings
+    // Screen States: 'MENU', 'PLAYING', 'VFX_STUDIO', 'PIXEL_RIG', 'GUIDE', 'SETTINGS', 'PAUSED', 'VICTORY', 'GAMEOVER'
+    this.screen = 'MENU';
+    this.theme = 'bw'; // 'bw' (Monochrome B&W), 'color' (Cyber Neon), 'green' (Phosphor Matrix)
+    this.crt = false;
 
-    // Game Systems
-    this.world = new AsciiWorld(100, 34);
-    this.player = new AsciiNinja(10, 20);
-    this.feedback = new AsciiFeedback();
-    this.projectiles = new AsciiProjectiles();
-    this.enemies = [];
-    this.initEnemies();
+    // Game Core
+    this.stageW = 320;
+    this.stageH = 180;
+    this.gameFrame = createFrame(this.stageW, this.stageH);
+    this.gameImgData = this.ctx.createImageData(this.stageW, this.stageH);
+    this.gameOffscreen = document.createElement('canvas');
+    this.gameOffscreen.width = this.stageW;
+    this.gameOffscreen.height = this.stageH;
+    this.gameOffscreenCtx = this.gameOffscreen.getContext('2d');
 
-    this.bossDefeated = false;
-    this.missionTime = 0;
+    this.player = new PixelPlayer(60, 148);
+    this.world = new PixelWorld(this.stageW, this.stageH);
 
-    // Wire melee attack hit listener
-    this.world.onMeleeHit = (hitX, hitY, radius, damage, player, damageText, particles) => {
-      for (const e of this.enemies) {
-        if (!e.isDead && Math.hypot(e.x - hitX, e.y - hitY) <= radius) {
-          e.takeDamage(damage, damageText, particles);
-          if (e.isDead) {
-            player.kills++;
-            if (e.type === 'warlord') {
-              this.bossDefeated = true;
-              setTimeout(() => {
-                this.currentScreen = 'VICTORY';
-              }, 1200);
-            }
-          }
-        }
-      }
-    };
+    // Studio & Rig Modules
+    this.studioOffscreen = document.createElement('canvas');
+    this.studio = new StudioManager(this.studioOffscreen);
+
+    this.rigOffscreen = document.createElement('canvas');
+    this.rigExplorer = new RigExplorer(this.rigOffscreen);
 
     this.lastTime = performance.now();
-    this.initUI();
-
-    this.loop = this.loop.bind(this);
-    requestAnimationFrame(this.loop);
-  }
-
-  initEnemies() {
-    this.enemies = [
-      new AsciiEnemy(20, 22, 'mutant'),
-      new AsciiEnemy(46, 12, 'mutant'),
-      new AsciiEnemy(76, 22, 'mutant'),
-      new AsciiEnemy(38, 14, 'drone'),
-      new AsciiEnemy(72, 10, 'drone'),
-      new AsciiEnemy(82, 8, 'warlord')
-    ];
-  }
-
-  startMission() {
-    this.currentScreen = 'PLAYING';
-    soundSynth.init();
-    soundSynth.startMusic();
-  }
-
-  restartMission() {
-    this.player = new AsciiNinja(10, 20);
-    this.feedback = new AsciiFeedback();
-    this.projectiles = new AsciiProjectiles();
-    this.bossDefeated = false;
     this.missionTime = 0;
-    this.initEnemies();
-    this.currentScreen = 'PLAYING';
+
+    this.initUI();
+    this.initTouchControls();
+    this.initStudioDOM();
+    this.initRigDOM();
+
+    // Start render loop
+    requestAnimationFrame((t) => this.loop(t));
+  }
+
+  setScreen(newScreen) {
+    this.screen = newScreen;
+
+    // Update top nav tabs
+    const tabMap = {
+      MENU: 'tabMenu',
+      PLAYING: 'tabPlay',
+      VFX_STUDIO: 'tabVfx',
+      PIXEL_RIG: 'tabRig',
+      GUIDE: 'tabGuide',
+      SETTINGS: 'tabSettings',
+    };
+
+    document.querySelectorAll('.nav-tab').forEach((tab) => tab.classList.remove('active'));
+    const activeTab = document.getElementById(tabMap[newScreen]);
+    if (activeTab) activeTab.classList.add('active');
+
+    // Contextual DOM Panels
+    const studioControls = document.getElementById('studioControls');
+    const rigControls = document.getElementById('rigControls');
+
+    if (studioControls) studioControls.style.display = newScreen === 'VFX_STUDIO' ? 'flex' : 'none';
+    if (rigControls) rigControls.style.display = newScreen === 'PIXEL_RIG' ? 'flex' : 'none';
+
+    // Audio cues
+    if (newScreen === 'PLAYING') {
+      soundSynth.startMusic();
+    }
   }
 
   initUI() {
-    // Navigation Bar Tab Buttons
-    const tabPlay = document.getElementById('tabPlay');
-    const tabMenu = document.getElementById('tabMenu');
-    const tabGuide = document.getElementById('tabGuide');
-    const tabVfx = document.getElementById('tabVfx');
-    const tabSettings = document.getElementById('tabSettings');
+    // Navigation Tabs
+    document.getElementById('tabMenu').addEventListener('click', () => this.setScreen('MENU'));
+    document.getElementById('tabPlay').addEventListener('click', () => {
+      if (this.player.hp <= 0) this.restartMission();
+      this.setScreen('PLAYING');
+    });
+    document.getElementById('tabVfx').addEventListener('click', () => this.setScreen('VFX_STUDIO'));
+    document.getElementById('tabRig').addEventListener('click', () => this.setScreen('PIXEL_RIG'));
+    document.getElementById('tabGuide').addEventListener('click', () => this.setScreen('GUIDE'));
+    document.getElementById('tabSettings').addEventListener('click', () => this.setScreen('SETTINGS'));
 
-    if (tabPlay) tabPlay.addEventListener('click', () => { this.startMission(); });
-    if (tabMenu) tabMenu.addEventListener('click', () => { this.currentScreen = 'MENU'; });
-    if (tabGuide) tabGuide.addEventListener('click', () => { this.currentScreen = 'GUIDE'; });
-    if (tabVfx) tabVfx.addEventListener('click', () => { this.currentScreen = 'VFX_ARCHIVE'; });
-    if (tabSettings) tabSettings.addEventListener('click', () => { this.currentScreen = 'SETTINGS'; });
-
-    // Toolbar Controls
+    // Bottom Toolbar Buttons
     const themeBtn = document.getElementById('themeBtn');
-    if (themeBtn) {
-      themeBtn.addEventListener('click', () => {
-        const t = this.grid.cycleTheme();
-        themeBtn.textContent = `THEME: ${t.toUpperCase()}`;
-      });
-    }
+    themeBtn.addEventListener('click', () => {
+      const themes = ['bw', 'color', 'green'];
+      const nextIdx = (themes.indexOf(this.theme) + 1) % themes.length;
+      this.theme = themes[nextIdx];
+      const names = { bw: 'THEME: B&W MONO (T)', color: 'THEME: NEON CYBER (T)', green: 'THEME: MATRIX GREEN (T)' };
+      themeBtn.textContent = names[this.theme];
+      this.studio.theme = this.theme;
+      this.rigExplorer.theme = this.theme;
+    });
 
     const bgmBtn = document.getElementById('bgmBtn');
-    if (bgmBtn) {
-      bgmBtn.addEventListener('click', () => {
-        const isPlaying = soundSynth.toggleMusic();
-        bgmBtn.textContent = isPlaying ? 'MUSIC: ON' : 'MUSIC: OFF';
-      });
-    }
+    bgmBtn.addEventListener('click', () => {
+      const playing = soundSynth.toggleMusic();
+      bgmBtn.textContent = `MUSIC: ${playing ? 'ON' : 'OFF'} (B)`;
+    });
 
     const muteBtn = document.getElementById('muteBtn');
-    if (muteBtn) {
-      muteBtn.addEventListener('click', () => {
-        const isMuted = soundSynth.toggleMute();
-        muteBtn.textContent = isMuted ? 'SFX: OFF' : 'SFX: ON';
-      });
-    }
+    muteBtn.addEventListener('click', () => {
+      const muted = soundSynth.toggleMute();
+      muteBtn.textContent = `SFX: ${muted ? 'OFF' : 'ON'} (M)`;
+    });
 
     const crtBtn = document.getElementById('crtBtn');
-    const container = document.getElementById('gameContainer');
-    if (crtBtn && container) {
-      crtBtn.addEventListener('click', () => {
-        container.classList.toggle('crt');
-        crtBtn.textContent = container.classList.contains('crt') ? 'CRT: ON' : 'CRT: OFF';
-      });
-    }
-
-    // Keyboard Navigation Listener
-    window.addEventListener('keydown', (e) => {
-      // Global navigation keys
-      if (e.code === 'KeyM') {
-        soundSynth.toggleMute();
-      } else if (e.code === 'KeyB') {
-        soundSynth.toggleMusic();
-      } else if (e.code === 'KeyT') {
-        const t = this.grid.cycleTheme();
-        if (themeBtn) themeBtn.textContent = `THEME: ${t.toUpperCase()}`;
-      } else if (e.code === 'Escape') {
-        if (this.currentScreen === 'PLAYING') {
-          this.currentScreen = 'PAUSED';
-        } else if (this.currentScreen === 'PAUSED') {
-          this.currentScreen = 'PLAYING';
-        } else {
-          this.currentScreen = 'MENU';
-        }
-      }
-
-      // Menu specific keys
-      if (this.currentScreen === 'MENU') {
-        if (e.code === 'Digit1') this.startMission();
-        else if (e.code === 'Digit2') this.currentScreen = 'GUIDE';
-        else if (e.code === 'Digit3') this.currentScreen = 'VFX_ARCHIVE';
-        else if (e.code === 'Digit4') this.currentScreen = 'SETTINGS';
-      }
+    crtBtn.addEventListener('click', () => {
+      this.crt = !this.crt;
+      document.getElementById('gameContainer').classList.toggle('crt', this.crt);
+      crtBtn.textContent = `CRT: ${this.crt ? 'ON' : 'OFF'}`;
     });
 
-    // Mobile Virtual Touch Buttons
-    const bindTouch = (id, onDown, onUp) => {
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyT') themeBtn.click();
+      if (e.code === 'KeyB') bgmBtn.click();
+      if (e.code === 'KeyM') muteBtn.click();
+      if (e.code === 'Escape') {
+        if (this.screen === 'PLAYING') this.setScreen('PAUSED');
+        else if (this.screen === 'PAUSED') this.setScreen('PLAYING');
+        else this.setScreen('MENU');
+      }
+    });
+  }
+
+  initTouchControls() {
+    const bindBtn = (id, key) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.addEventListener('touchstart', (e) => { e.preventDefault(); onDown(); });
-      el.addEventListener('touchend', (e) => { e.preventDefault(); onUp(); });
-      el.addEventListener('mousedown', onDown);
-      el.addEventListener('mouseup', onUp);
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        this.input.setTouch(key, true);
+      });
+      el.addEventListener('pointerup', (e) => {
+        e.preventDefault();
+        this.input.setTouch(key, false);
+      });
+      el.addEventListener('pointerleave', (e) => {
+        e.preventDefault();
+        this.input.setTouch(key, false);
+      });
     };
 
-    bindTouch('btnLeft', () => { this.input.keys.left = true; }, () => { this.input.keys.left = false; });
-    bindTouch('btnRight', () => { this.input.keys.right = true; }, () => { this.input.keys.right = false; });
-    bindTouch('btnJump', () => { this.input.justPressed.jump = true; }, () => {});
-    bindTouch('btnPunch', () => { this.input.justPressed.slash = true; }, () => {});
-    bindTouch('btnFlask', () => { this.input.justPressed.dash = true; }, () => {});
+    bindBtn('btnLeft', 'TouchLeft');
+    bindBtn('btnRight', 'TouchRight');
+    bindBtn('btnJump', 'TouchJump');
+    bindBtn('btnPunch', 'TouchPunch');
+    bindBtn('btnDash', 'TouchDash');
+    bindBtn('btnFlask', 'TouchFlask');
+    bindBtn('btnStomp', 'TouchStomp');
+  }
 
-    // Canvas Click Listener for Screen Navigation
-    this.canvas.addEventListener('click', () => {
-      if (this.currentScreen === 'MENU') {
-        this.startMission();
-      } else if (this.currentScreen === 'GUIDE' || this.currentScreen === 'VFX_ARCHIVE' || this.currentScreen === 'SETTINGS') {
-        this.startMission();
-      } else if (this.currentScreen === 'GAMEOVER' || this.currentScreen === 'VICTORY') {
-        this.restartMission();
-      }
+  initStudioDOM() {
+    const catBar = document.getElementById('catBar');
+    const effectSelect = document.getElementById('effectSelect');
+    const metaDesc = document.getElementById('effectMetaDesc');
+
+    // Populate category buttons
+    this.studio.categories.forEach((cat) => {
+      const btn = document.createElement('button');
+      btn.className = `cat-btn ${cat.id === this.studio.activeCategory ? 'active' : ''}`;
+      btn.textContent = cat.name.toUpperCase();
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cat-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.studio.setCategory(cat.id);
+        this.refreshStudioSelect();
+      });
+      catBar.appendChild(btn);
     });
+
+    this.refreshStudioSelect = () => {
+      effectSelect.innerHTML = '';
+      const list = this.studio.filteredEffects;
+      list.forEach((fx) => {
+        const opt = document.createElement('option');
+        opt.value = fx.id;
+        opt.textContent = `${fx.name} (${fx.meta.loop ? 'loop' : fx.meta.duration + 's'})`;
+        if (fx.id === this.studio.selectedEffectId) opt.selected = true;
+        effectSelect.appendChild(opt);
+      });
+      this.updateStudioMeta();
+    };
+
+    this.updateStudioMeta = () => {
+      const fx = this.studio.activeEffect;
+      if (!fx) return;
+      const m = fx.meta;
+      metaDesc.innerHTML = `<strong>${fx.name}</strong> [${fx.cat}] &bull; Duration: ${m.duration}s &bull; FPS: ${m.fps} &bull; Size: ${m.size[0]}x${m.size[1]}<br>${m.desc || 'Procedural pixel effect from patch-gg/pixelfx library.'}<br><span style="color:#00ff88">Author/Engine: Hugo Duprez (Sprite Fusion) &bull; Patch &bull; Zero External Assets</span>`;
+    };
+
+    effectSelect.addEventListener('change', (e) => {
+      this.studio.loadEffect(e.target.value);
+      this.updateStudioMeta();
+    });
+
+    document.getElementById('studioPlayBtn').addEventListener('click', (e) => {
+      this.studio.togglePlay();
+      e.target.textContent = this.studio.playing ? '⏸ PAUSE' : '▶ PLAY';
+    });
+
+    document.getElementById('studioRestartBtn').addEventListener('click', () => {
+      this.studio.restart();
+    });
+
+    const speedBtn = document.getElementById('studioSpeedBtn');
+    speedBtn.addEventListener('click', () => {
+      const speeds = [0.25, 0.5, 1.0, 2.0];
+      const nextIdx = (speeds.indexOf(this.studio.speed) + 1) % speeds.length;
+      this.studio.speed = speeds[nextIdx];
+      speedBtn.textContent = `SPEED: ${this.studio.speed}x`;
+    });
+
+    const actorBtn = document.getElementById('studioActorBtn');
+    actorBtn.addEventListener('click', () => {
+      this.studio.showActor = !this.studio.showActor;
+      actorBtn.textContent = `ACTOR: ${this.studio.showActor ? 'ON' : 'OFF'}`;
+      this.studio.loadEffect(this.studio.selectedEffectId);
+    });
+
+    const flipBtn = document.getElementById('studioFlipBtn');
+    flipBtn.addEventListener('click', () => {
+      this.studio.flip = !this.studio.flip;
+      flipBtn.textContent = `FLIP: ${this.studio.flip ? 'ON' : 'OFF'}`;
+      this.studio.loadEffect(this.studio.selectedEffectId);
+    });
+
+    const bgBtn = document.getElementById('studioBgBtn');
+    bgBtn.addEventListener('click', () => {
+      const bgs = ['ground', 'dark', 'black', 'sky'];
+      const nextIdx = (bgs.indexOf(this.studio.backdropType) + 1) % bgs.length;
+      this.studio.setBackdrop(bgs[nextIdx]);
+      bgBtn.textContent = `BG: ${bgs[nextIdx].toUpperCase()}`;
+    });
+
+    this.refreshStudioSelect();
+  }
+
+  initRigDOM() {
+    const rig = this.rigExplorer;
+    const bindSlider = (id, prop, isRad = false) => {
+      const slider = document.getElementById(id);
+      if (!slider) return;
+      slider.addEventListener('input', (e) => {
+        rig[prop] = parseFloat(e.target.value);
+      });
+    };
+
+    bindSlider('sliderYaw', 'yaw', true);
+    bindSlider('sliderLean', 'lean');
+    bindSlider('sliderCrouch', 'crouch');
+    bindSlider('sliderHandX', 'fx');
+    bindSlider('sliderWeaponAngle', 'weaponAngle', true);
+
+    const spinBtn = document.getElementById('rigSpinBtn');
+    spinBtn.addEventListener('click', () => {
+      rig.autoSpin = !rig.autoSpin;
+      spinBtn.textContent = `AUTO-SPIN: ${rig.autoSpin ? 'ON' : 'OFF'}`;
+    });
+
+    const weaponBtn = document.getElementById('rigWeaponBtn');
+    weaponBtn.addEventListener('click', () => {
+      const weapons = ['sword', 'staff', 'none'];
+      const next = (weapons.indexOf(rig.weapon) + 1) % weapons.length;
+      rig.weapon = weapons[next];
+      weaponBtn.textContent = `WEAPON: ${rig.weapon.toUpperCase()}`;
+    });
+
+    document.getElementById('rigResetBtn').addEventListener('click', () => {
+      rig.yaw = 0;
+      rig.lean = 0;
+      rig.crouch = 2;
+      rig.fx = 11;
+      rig.weaponAngle = 0.4;
+      document.getElementById('sliderYaw').value = 0;
+      document.getElementById('sliderLean').value = 0;
+      document.getElementById('sliderCrouch').value = 2;
+      document.getElementById('sliderHandX').value = 11;
+      document.getElementById('sliderWeaponAngle').value = 0.4;
+    });
+  }
+
+  restartMission() {
+    this.player = new PixelPlayer(60, 148);
+    this.world = new PixelWorld(this.stageW, this.stageH);
+    this.missionTime = 0;
   }
 
   loop(currentTime) {
     const dt = Math.min((currentTime - this.lastTime) / 1000, 0.1);
     this.lastTime = currentTime;
 
-    // 1. Process Screen States
-    if (this.currentScreen === 'PLAYING') {
-      this.missionTime += dt;
-      this.updateGameplay(dt);
-    }
-
-    // 2. Clear Screen Grid
-    this.grid.clear();
-
-    // 3. Render Respective Screen Page
-    switch (this.currentScreen) {
+    // Render active screen
+    switch (this.screen) {
       case 'MENU':
-        this.renderMenuScreen();
+        this.renderMenu(dt);
         break;
       case 'PLAYING':
-        this.renderGameScreen();
+        this.updateGame(dt);
+        this.renderGame();
+        break;
+      case 'VFX_STUDIO':
+        this.studio.step(dt);
+        this.studio.draw(this.ctx, this.canvas.width, this.canvas.height);
+        break;
+      case 'PIXEL_RIG':
+        this.rigExplorer.update(dt);
+        this.rigExplorer.draw(this.ctx, this.canvas.width, this.canvas.height);
         break;
       case 'GUIDE':
-        this.renderGuideScreen();
-        break;
-      case 'VFX_ARCHIVE':
-        this.renderVfxArchiveScreen();
+        this.renderGuide();
         break;
       case 'SETTINGS':
-        this.renderSettingsScreen();
+        this.renderSettings();
         break;
       case 'PAUSED':
-        this.renderPauseScreen();
+        this.renderPaused();
         break;
       case 'VICTORY':
-        this.renderVictoryScreen();
+        this.renderVictory();
         break;
       case 'GAMEOVER':
-        this.renderGameOverScreen();
+        this.renderGameOver();
         break;
     }
 
     this.input.update();
-
-    // 4. Output Character Matrix to Screen
-    this.grid.renderToCanvas(this.ctx, this.canvas.width, this.canvas.height);
-
-    requestAnimationFrame(this.loop);
+    requestAnimationFrame((t) => this.loop(t));
   }
 
-  updateGameplay(dt) {
-    if (this.player.isDead) {
-      this.currentScreen = 'GAMEOVER';
-      return;
-    }
+  updateGame(dt) {
+    this.missionTime += dt;
 
-    // Update Player
-    this.player.update(dt, this.input, this.world, this.projectiles, this.feedback, this.feedback);
+    // Hit reaction handler for player moves
+    const onMeleeHit = (hit, player) => {
+      soundSynth.playHit();
+      const hitRadius = hit.straw ? 36 : 28;
+      const hitDmg = hit.straw ? 45 : 24;
 
-    // Update Enemies
-    for (let i = this.enemies.length - 1; i >= 0; i--) {
-      const e = this.enemies[i];
-      e.update(dt, this.player, this.world, this.projectiles, this.feedback, this.feedback);
-      if (e.isDead && e.type !== 'warlord') {
-        this.enemies.splice(i, 1);
-      }
-    }
+      for (const e of this.world.enemies) {
+        if (!e.isDead && Math.hypot(e.x - player.x, e.y - player.y) <= hitRadius) {
+          e.takeDamage(hitDmg);
+          this.world.addFloatingText(hit.straw ? `CRIT ${hitDmg}!` : `-${hitDmg}`, e.x, e.y - 20, hit.straw ? '#ffcc00' : '#ffffff');
+          this.world.spawnCrit(e.x, e.y - 12);
 
-    // Update Projectiles & Poison Clouds
-    this.projectiles.update(dt, this.world, this.player, this.enemies, this.feedback, this.feedback);
-    this.feedback.update(dt);
-
-    // Collectibles
-    for (let i = this.world.collectibles.length - 1; i >= 0; i--) {
-      const c = this.world.collectibles[i];
-      if (Math.hypot(this.player.x - c.x, this.player.y - c.y) < 3.5) {
-        if (c.type === 'gold') {
-          this.player.score += 50;
-          this.feedback.add(c.x, c.y - 1, '+50 PTS', 'crit');
-          soundSynth.playCoin();
-        } else if (c.type === 'flask') {
-          this.player.flasks++;
-          this.feedback.add(c.x, c.y - 1, '+1 FLASK', 'crit');
-          soundSynth.playClank();
+          if (e.isDead) {
+            player.kills++;
+            player.score += e.type === 'warlord' ? 1000 : 150;
+            if (e.type === 'warlord') {
+              soundSynth.playVictory();
+              setTimeout(() => this.setScreen('VICTORY'), 1200);
+            }
+          }
         }
-        this.feedback.emit(c.x, c.y, ['*', '+']);
-        this.world.collectibles.splice(i, 1);
       }
+    };
+
+    // Poison cloud spawner
+    const spawnPoison = (x, y) => {
+      this.world.spawnPoisonCloud(x, y);
+    };
+
+    // Update Player & World
+    this.player.update(dt, this.input, this.world, onMeleeHit, spawnPoison);
+    this.world.update(dt, this.player);
+
+    if (this.player.hp <= 0) {
+      soundSynth.playGameOver();
+      this.setScreen('GAMEOVER');
     }
   }
 
-  // ==========================================
-  // PAGE 1: TITLE SCREEN / MAIN MENU
-  // ==========================================
-  renderMenuScreen() {
-    this.grid.drawBox(2, 1, 96, 32, 'CYBERNETIC TERMINAL // VERSION 2.0');
+  renderGame() {
+    clearFrame(this.gameFrame);
 
-    // Grand ASCII Logo
-    const logo = [
-      ' _______ _____ _   ___   __    _____ _  __   ______  _    _  _____ ',
-      '|__   __|_   _| \ | \ \ / /   / ____| | \ \ / /  _ \| |  | |/ ____|',
-      '   | |    | | |  \| |\ V /   | |  __| |  \ V /| |_) | |__| | (___  ',
-      '   | |    | | | . ` | > <    | | |_ | |   > < |  __/|  __  |\___ \ ',
-      '   | |   _| |_| |\  |/ . \   | |__| | |__/ . \| |   | |  | |____) |',
-      '   |_|  |_____|_| \_/_/ \_\   \_____|____/_/ \_\_|   |_|  |_|_____/ '
+    // Draw world platforms, hazards, enemies, back FX
+    this.world.draw(this.gameFrame, this.theme);
+
+    // Draw player with procedural rig & active moves
+    this.player.draw(this.gameFrame, this.theme);
+
+    // Composite 320x180 frame
+    composite(this.gameFrame, this.gameImgData.data, null);
+    this.gameOffscreenCtx.putImageData(this.gameImgData, 0, 0);
+
+    // Apply Camera Shake from active act
+    let sx = 0;
+    let sy = 0;
+    if (this.player.activeAct) {
+      [sx, sy] = this.player.activeAct.shake || [0, 0];
+    }
+
+    // Render scaled up 3x to 960x540 canvas
+    this.ctx.save();
+    this.ctx.imageSmoothingEnabled = false;
+
+    if (this.theme === 'bw') {
+      this.ctx.filter = 'grayscale(100%) contrast(140%)';
+    } else if (this.theme === 'green') {
+      this.ctx.filter = 'sepia(100%) hue-rotate(90deg) saturate(300%)';
+    }
+
+    this.ctx.drawImage(this.gameOffscreen, sx * 3, sy * 3, this.canvas.width, this.canvas.height);
+    this.ctx.restore();
+
+    // Floating combat texts
+    this.world.drawOverlay(this.ctx, 3, 3);
+
+    // Render Crisp HUD
+    this.renderHUD();
+  }
+
+  renderHUD() {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.font = 'bold 12px "Courier New", monospace';
+
+    // Top HUD Bar Background
+    ctx.fillStyle = 'rgba(10, 10, 16, 0.85)';
+    ctx.fillRect(16, 12, 928, 42);
+    ctx.strokeStyle = '#333348';
+    ctx.strokeRect(16, 12, 928, 42);
+
+    // Health Bar
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('HP:', 28, 38);
+    const hpRatio = this.player.hp / this.player.maxHp;
+    ctx.fillStyle = '#221111';
+    ctx.fillRect(60, 24, 150, 18);
+    ctx.fillStyle = this.theme === 'bw' ? '#ffffff' : '#ff3344';
+    ctx.fillRect(60, 24, 150 * hpRatio, 18);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`${Math.ceil(this.player.hp)}/100`, 110, 38);
+
+    // Energy Bar
+    ctx.fillText('ENERGY:', 230, 38);
+    const nrgRatio = this.player.energy / this.player.maxEnergy;
+    ctx.fillStyle = '#112222';
+    ctx.fillRect(295, 24, 120, 18);
+    ctx.fillStyle = this.theme === 'bw' ? '#cccccc' : '#00f0ff';
+    ctx.fillRect(295, 24, 120 * nrgRatio, 18);
+
+    // Flasks
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`FLASKS: ${'🧪'.repeat(this.player.flasks)}`, 435, 38);
+
+    // Score & Kills
+    ctx.fillText(`KILLS: ${this.player.kills}`, 620, 38);
+    ctx.fillText(`SCORE: ${this.player.score}`, 720, 38);
+
+    // Active Move Banner
+    if (this.player.activeMoveName) {
+      ctx.fillStyle = '#00f0ff';
+      ctx.fillText(`[ ${this.player.activeMoveName.toUpperCase()} ]`, 830, 38);
+    }
+
+    // Boss Bar if Goliath is alive
+    const boss = this.world.enemies.find((e) => e.type === 'warlord');
+    if (boss && !boss.isDead) {
+      ctx.fillStyle = 'rgba(20, 10, 20, 0.9)';
+      ctx.fillRect(280, 485, 400, 32);
+      ctx.strokeStyle = '#ff3366';
+      ctx.strokeRect(280, 485, 400, 32);
+
+      const bossRatio = boss.hp / boss.maxHp;
+      ctx.fillStyle = this.theme === 'bw' ? '#ffffff' : '#ff2255';
+      ctx.fillRect(284, 489, 392 * bossRatio, 24);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(`CYBER WARLORD GOLIATH — ${Math.ceil(boss.hp)} HP`, 480, 506);
+    }
+
+    ctx.restore();
+  }
+
+  renderMenu(dt) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = '#07070a';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Background cyber grid lines
+    ctx.strokeStyle = '#181824';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < this.canvas.width; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, this.canvas.height);
+      ctx.stroke();
+    }
+
+    // Title
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 36px "Courier New", monospace';
+    ctx.fillText('† TINY GLYPHS †', 480, 140);
+
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = '14px "Courier New", monospace';
+    ctx.fillText('PROCEDURAL PIXEL ART & FLUID VFX EDITION', 480, 175);
+    ctx.fillStyle = '#8888aa';
+    ctx.fillText('Powered by patch-gg/pixelfx • Hugo Duprez (Sprite Fusion) • Pure Web Audio', 480, 200);
+
+    // Menu Buttons
+    const options = [
+      { text: '▶  [1] PLAY COMBAT MISSION', screen: 'PLAYING' },
+      { text: '🧪  [2] VFX STUDIO (244 EFFECTS)', screen: 'VFX_STUDIO' },
+      { text: '🧬  [3] HOW PIXEL ART IS BUILT', screen: 'PIXEL_RIG' },
+      { text: '📖  [4] HOW TO PLAY & GUIDE', screen: 'GUIDE' },
+      { text: '⚙️  [5] SETTINGS & THEMES', screen: 'SETTINGS' },
     ];
 
-    for (let i = 0; i < logo.length; i++) {
-      this.grid.drawString(16, 4 + i, logo[i], '#ffffff');
+    options.forEach((opt, i) => {
+      const y = 260 + i * 46;
+      ctx.fillStyle = '#12121c';
+      ctx.fillRect(280, y - 22, 400, 34);
+      ctx.strokeStyle = '#333348';
+      ctx.strokeRect(280, y - 22, 400, 34);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 14px "Courier New", monospace';
+      ctx.fillText(opt.text, 480, y);
+    });
+
+    // Quick start hint
+    ctx.fillStyle = '#777788';
+    ctx.font = '12px "Courier New", monospace';
+    ctx.fillText('Press [SPACE] or Click to Play • [T] Toggle Theme • [B] Toggle Music', 480, 505);
+
+    // Click to start
+    if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) {
+      this.setScreen('PLAYING');
     }
 
-    this.grid.drawString(22, 12, 'PURE MONOSPACE ASCII 2D ACTION PLATFORMER', '#888888');
-
-    // Menu Navigation Options
-    this.grid.drawString(16, 16, '╔═════════════════════════════════════════════════════════════════╗', '#ffffff');
-    this.grid.drawString(16, 17, '║   SELECT PAGE (PRESS 1-4 OR CLICK ANYWHERE TO START):           ║', '#ffffff');
-    this.grid.drawString(16, 18, '║                                                                 ║', '#ffffff');
-    this.grid.drawString(16, 19, '║   ▶ [ 1 ] START MISSION               (Infiltrate Sector 4)     ║', '#ffffff');
-    this.grid.drawString(16, 20, '║     [ 2 ] HOW TO PLAY & COMBAT GUIDE  (Controls & Mechanics)    ║', '#ffffff');
-    this.grid.drawString(16, 21, '║     [ 3 ] SPRITE FUSION VFX ARCHIVE   (Poison VFX & Animations) ║', '#ffffff');
-    this.grid.drawString(16, 22, '║     [ 4 ] SETTINGS & THEMES           (B&W / Green / Amber)     ║', '#ffffff');
-    this.grid.drawString(16, 23, '║                                                                 ║', '#ffffff');
-    this.grid.drawString(16, 24, '╚═════════════════════════════════════════════════════════════════╝', '#ffffff');
-
-    this.grid.drawString(20, 28, '>>> PRESS [ SPACE ], [ 1 ], OR CLICK TO LAUNCH GAME <<<', '#ffffff');
-    this.grid.drawString(24, 30, '[ TIP: USE THE TOP TABS OR NUMBER KEYS TO NAVIGATE ]', '#666666');
+    ctx.restore();
   }
 
-  // ==========================================
-  // PAGE 2: HOW TO PLAY & COMBAT GUIDE
-  // ==========================================
-  renderGuideScreen() {
-    this.grid.drawBox(2, 1, 96, 32, 'PAGE 2 // HOW TO PLAY & COMBAT GUIDE');
+  renderGuide() {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = '#0a0a10';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = 'bold 22px "Courier New", monospace';
+    ctx.fillText('📖 HOW TO PLAY & COMBAT SYSTEM', 40, 50);
+
+    ctx.fillStyle = '#cccccc';
+    ctx.font = '12.5px "Courier New", monospace';
+    let y = 90;
     const lines = [
-      '╔════════════════════════════════════════════════════════════════════════════════════════╗',
-      '║  [ 1. MISSION BRIEFING ]                                                               ║',
-      '║  You are a rogue Cyber Ninja infiltrating the dystopian ruins of Sector 4.             ║',
-      '║  Leap across industrial ledges, evade toxic sludge pits, and destroy Warlord Goliath!  ║',
-      '║                                                                                        ║',
-      '║  [ 2. CONTROLS & COMBAT ABILITIES ]                                                    ║',
-      '║  • A / D or ◀ ▶ ARROWS : Run Left & Right                                              ║',
-      '║  • W / SPACE           : Jump  (Press again in mid-air to DOUBLE JUMP!)                ║',
-      '║  • J or LEFT CLICK     : Straight Punch Strike (Martial arts punch combo)              ║',
-      '║  • K / E or RIGHT CLICK: Lob Sprite Fusion Toxic Poison Flask                          ║',
-      '║  • B / MUSIC BUTTON    : Toggle Procedural 8-Bit Cyberpunk Synth BGM                   ║',
-      '║  • T / THEME BUTTON    : Cycle Colors (Monochrome B&W / Matrix Green / Amber)          ║',
-      '║  • ESC / BACK BUTTON   : Pause / Return to Main Menu                                   ║',
-      '║                                                                                        ║',
-      '║  [ 3. COMBAT TACTIC: SPRITE FUSION POISON VFX ]                                        ║',
-      '║  Throwing a toxic flask (K) releases an expanding ASCII poison gas cloud (░▒▓%&#@)     ║',
-      '║  that melts mutant hordes with continuous damage-over-time (DoT)!                      ║',
-      '╚════════════════════════════════════════════════════════════════════════════════════════╝'
+      'MISSION OBJECTIVE:',
+      '  Infiltrate the cyber wasteland, defeat mutant patrols, avoid toxic hazard pits,',
+      '  and eliminate Goliath the Cyber Warlord Boss.',
+      '',
+      'COMBAT ABILITIES (PixelFX Acted Moves):',
+      '  • [A / D] or [Arrows]     : Run with realistic foot dust particles',
+      '  • [W / Space]             : Jump & Double Jump to clear hazard pits',
+      '  • [J / Z] or Click        : Sword Combo (3-hit flurry with impact freeze frame)',
+      '  • [L / C] or Shift        : Dash Strike (Invulnerable blur with glowing after-images)',
+      '  • [K / E]                 : Poison Flask (Spawns Hugo Duprez toxic gas cloud DoT)',
+      '  • [U]                     : Earth Stomp (Shockwave that damages grounded enemies)',
+      '  • [O]                     : Lightning Call (Celestial thunderbolt strike)',
+      '',
+      'FLUID VFX & PARTICLE PHYSICS:',
+      '  • Poison gas clouds billow dynamically with multi-sheet fluid simulation.',
+      '  • Every hit triggers authentic contact stop, spring reaction, and screen shake.',
+      '',
+      'Press [ESC] or click MENU to return.',
     ];
 
-    for (let i = 0; i < lines.length; i++) {
-      this.grid.drawString(5, 3 + i, lines[i], '#ffffff');
+    for (const line of lines) {
+      if (line.includes(':')) {
+        ctx.fillStyle = '#00f0ff';
+      } else {
+        ctx.fillStyle = '#bbbbcc';
+      }
+      ctx.fillText(line, 40, y);
+      y += 24;
     }
 
-    this.grid.drawString(18, 26, '>>> PRESS [ SPACE ] TO START MISSION  |  [ ESC ]: BACK TO MENU <<<', '#ffffff');
+    ctx.restore();
   }
 
-  // ==========================================
-  // PAGE 3: SPRITE FUSION VFX & ARSENAL ARCHIVE
-  // ==========================================
-  renderVfxArchiveScreen() {
-    this.grid.drawBox(2, 1, 96, 32, 'PAGE 3 // SPRITE FUSION VFX & CHARACTER ARCHIVE');
+  renderSettings() {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = '#0a0a10';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    this.grid.drawString(6, 3, '[ HERO SPRITE: CYBER NINJA ]', '#ffffff');
-    const ninjaSprite = [
-      '   .---.       ',
-      '  |[===]|======(O)*  <-- Visor Slit & Straight Punch Strike!',
-      '  |/███\\|            <-- Dark Bodysuit & Trailing Scarf ~ ≈',
-      '   \\▓▓▓/             <-- Combat Sash',
-      '   /   \\             <-- Athletic Stance',
-      '  /_   _\\            <-- Combat Boots'
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = 'bold 22px "Courier New", monospace';
+    ctx.fillText('⚙️ GAME SETTINGS', 40, 50);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '13px "Courier New", monospace';
+    let y = 100;
+    const settings = [
+      `1. VISUAL THEME       : ${this.theme.toUpperCase()} (Press [T] to cycle B&W Mono / Neon Cyber / Matrix Green)`,
+      `2. CRT SCANLINES      : ${this.crt ? 'ENABLED' : 'DISABLED'} (Toggle in toolbar)`,
+      `3. CHIPTUNE MUSIC     : ${soundSynth.musicPlaying ? 'PLAYING' : 'MUTED'} (Press [B])`,
+      `4. SOUND EFFECTS      : ${soundSynth.muted ? 'MUTED' : 'ENABLED'} (Press [M])`,
+      `5. PIXELFX ARCHIVE    : 244 effects across 21 categories (Fully accessible in Studio tab)`,
     ];
-    for (let i = 0; i < ninjaSprite.length; i++) {
-      this.grid.drawString(6, 5 + i, ninjaSprite[i], '#ffffff');
+
+    settings.forEach((s) => {
+      ctx.fillText(s, 40, y);
+      y += 36;
+    });
+
+    ctx.fillStyle = '#8888aa';
+    ctx.fillText('Click any toolbar button below to change settings.', 40, y + 20);
+    ctx.restore();
+  }
+
+  renderPaused() {
+    this.renderGame();
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = 'rgba(5, 5, 10, 0.75)';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 28px "Courier New", monospace';
+    ctx.fillText('MISSION PAUSED', 480, 240);
+
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = '14px "Courier New", monospace';
+    ctx.fillText('Press [ESC] or Space to Resume Mission', 480, 280);
+    ctx.restore();
+  }
+
+  renderVictory() {
+    this.renderGame();
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = 'rgba(5, 15, 10, 0.85)';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#00ff88';
+    ctx.font = 'bold 36px "Courier New", monospace';
+    ctx.fillText('† MISSION ACCOMPLISHED †', 480, 210);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '16px "Courier New", monospace';
+    ctx.fillText(`CYBER WARLORD DEFEATED!`, 480, 255);
+    ctx.fillText(`Score: ${this.player.score} | Kills: ${this.player.kills} | Time: ${Math.floor(this.missionTime)}s`, 480, 290);
+
+    ctx.fillStyle = '#00f0ff';
+    ctx.fillText('Press [SPACE] to Play Again or Explore VFX Studio', 480, 340);
+
+    if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) {
+      this.restartMission();
+      this.setScreen('PLAYING');
     }
+    ctx.restore();
+  }
 
-    this.grid.drawString(6, 13, '[ SPRITE FUSION POISON GAS CLOUD VFX ]', '#ffffff');
-    const cloudVfx = [
-      '        .  :  *  %  &  %  *  :  .        ',
-      '      :  %  &  #  @  #  &  %  :      <-- Expanding toxic fumes lingering on floor',
-      '     *  &  #  @  @  @  #  &  *       <-- Ticks -6 Damage-Over-Time to mutants',
-      '    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    <-- Floor acid puddle'
-    ];
-    for (let i = 0; i < cloudVfx.length; i++) {
-      this.grid.drawString(6, 15 + i, cloudVfx[i], '#ffffff');
+  renderGameOver() {
+    this.renderGame();
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = 'rgba(20, 5, 5, 0.85)';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff3344';
+    ctx.font = 'bold 36px "Courier New", monospace';
+    ctx.fillText('† MISSION FAILED †', 480, 220);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '14px "Courier New", monospace';
+    ctx.fillText('Press [SPACE] or Click to Respawn', 480, 270);
+
+    if (this.input.wasJustPressed('jump') || this.input.wasJustPressed('punch')) {
+      this.restartMission();
+      this.setScreen('PLAYING');
     }
-
-    this.grid.drawString(6, 21, '[ ENEMY ROSTER ]', '#ffffff');
-    this.grid.drawString(6, 23, '• CYBER MUTANT <[X X]> : Ground swarmer with claw slash', '#cccccc');
-    this.grid.drawString(6, 24, '• HOVER DRONE  <-(O)-> : Flying sentry firing laser beams (───*)', '#cccccc');
-    this.grid.drawString(6, 25, '• WARLORD GOLIATH [██W██] : Sector Boss with titan cleaves & plasma bursts', '#cccccc');
-
-    this.grid.drawString(18, 29, '>>> PRESS [ SPACE ] TO START MISSION  |  [ ESC ]: BACK TO MENU <<<', '#ffffff');
-  }
-
-  // ==========================================
-  // PAGE 4: SETTINGS & THEMES
-  // ==========================================
-  renderSettingsScreen() {
-    this.grid.drawBox(2, 1, 96, 32, 'PAGE 4 // SETTINGS & TERMINAL THEMES');
-
-    this.grid.drawString(8, 5, 'SELECT TERMINAL THEME:', '#ffffff');
-    this.grid.drawString(8, 7, `[ 1 ] MONOCHROME B&W       ${this.grid.theme === 'bw' ? '◀ ACTIVE' : ''}`, '#ffffff');
-    this.grid.drawString(8, 9, `[ 2 ] MATRIX PHOSPHOR GREEN ${this.grid.theme === 'green' ? '◀ ACTIVE' : ''}`, '#ffffff');
-    this.grid.drawString(8, 11, `[ 3 ] VINTAGE AMBER TERMINAL ${this.grid.theme === 'amber' ? '◀ ACTIVE' : ''}`, '#ffffff');
-
-    this.grid.drawString(8, 15, 'AUDIO CONTROLS:', '#ffffff');
-    this.grid.drawString(8, 17, `• BACKGROUND MUSIC : ${soundSynth.musicPlaying ? 'ENABLED (PRESS B)' : 'DISABLED (PRESS B)'}`, '#cccccc');
-    this.grid.drawString(8, 19, `• SOUND EFFECTS    : ${soundSynth.muted ? 'MUTED (PRESS M)' : 'ENABLED (PRESS M)'}`, '#cccccc');
-
-    this.grid.drawString(8, 23, '[ CLICK THE TOP TOOLBAR BUTTONS TO TOGGLE THEMES & AUDIO INSTANTLY ]', '#888888');
-    this.grid.drawString(18, 28, '>>> PRESS [ ESC ] TO RETURN TO MENU  |  [ SPACE ]: PLAY GAME <<<', '#ffffff');
-  }
-
-  // ==========================================
-  // PAGE 5: ACTIVE GAMEPLAY SCREEN
-  // ==========================================
-  renderGameScreen() {
-    // 1. Draw World Platforms & Hazards
-    this.world.draw(this.grid);
-
-    // 2. Draw Enemies
-    for (const e of this.enemies) {
-      e.draw(this.grid);
-    }
-
-    // 3. Draw Projectiles & Poison Clouds
-    this.projectiles.draw(this.grid);
-
-    // 4. Draw Player Character
-    this.player.draw(this.grid);
-
-    // 5. Draw Particles & Damage
-    this.feedback.draw(this.grid);
-
-    // 6. Top Clean HUD (Completely clear, no overlapping text!)
-    this.grid.drawBox(1, 0, 98, 3, 'SECTOR 4: CITADEL INFILTRATION');
-
-    const hpPct = Math.max(0, this.player.hp / this.player.maxHp);
-    const hpBars = Math.round(hpPct * 10);
-    const hpStr = '[' + '█'.repeat(hpBars) + '░'.repeat(10 - hpBars) + `] ${Math.max(0, this.player.hp)}/100 HP`;
-
-    const hudText = `NINJA ${hpStr}  |  FLASKS: ${'(o)'.repeat(this.player.flasks)}  |  SCORE: ${String(this.player.score).padStart(4, '0')}  |  KILLS: ${this.player.kills}  |  [ESC: MENU]`;
-    this.grid.drawString(3, 1, hudText, '#ffffff');
-
-    // Bottom Clean Bar
-    const bottomPrompt = '[ A/D: RUN | SPACE: JUMP & DOUBLE JUMP | J: PUNCH | K: POISON FLASK | ESC: PAUSE ]';
-    this.grid.drawString(Math.floor((100 - bottomPrompt.length) / 2), 33, bottomPrompt, '#888888');
-  }
-
-  // ==========================================
-  // PAGE 6: PAUSE MENU
-  // ==========================================
-  renderPauseScreen() {
-    // Draw dimmed game underneath
-    this.renderGameScreen();
-
-    const boxW = 50;
-    const boxH = 12;
-    const boxX = Math.floor((100 - boxW) / 2);
-    const boxY = Math.floor((34 - boxH) / 2);
-
-    this.grid.drawBox(boxX, boxY, boxW, boxH, 'MISSION PAUSED');
-    this.grid.drawString(boxX + 16, boxY + 2, '† PAUSED †', '#ffffff');
-    this.grid.drawString(boxX + 8, boxY + 4, '[ ESC / SPACE ]: RESUME MISSION', '#cccccc');
-    this.grid.drawString(boxX + 8, boxY + 6, '[ R ]          : RESTART MISSION', '#cccccc');
-    this.grid.drawString(boxX + 8, boxY + 8, '[ CLICK MENU ] : QUIT TO MAIN MENU', '#cccccc');
-  }
-
-  // ==========================================
-  // PAGE 7: VICTORY SCREEN
-  // ==========================================
-  renderVictoryScreen() {
-    this.grid.drawBox(10, 4, 80, 24, 'MISSION COMPLETE');
-
-    this.grid.drawString(28, 8, '★ ★ ★ CITADEL LIBERATED ★ ★ ★', '#ffffff');
-    this.grid.drawString(22, 11, 'WARLORD GOLIATH HAS BEEN VANQUISHED!', '#cccccc');
-
-    this.grid.drawString(26, 14, `• FINAL SCORE      : ${this.player.score} PTS`, '#ffffff');
-    this.grid.drawString(26, 16, `• ROGUES DESTROYED : ${this.player.kills} ENEMIES`, '#ffffff');
-    this.grid.drawString(26, 18, `• COMBAT RANK      : S-CLASS OPERATIVE`, '#ffffff');
-
-    this.grid.drawString(20, 22, '>>> PRESS [ R ] OR CLICK TO REPLAY MISSION <<<', '#ffffff');
-    this.grid.drawString(26, 24, '[ PRESS ESC TO RETURN TO MAIN MENU ]', '#888888');
-  }
-
-  // ==========================================
-  // PAGE 8: GAME OVER SCREEN
-  // ==========================================
-  renderGameOverScreen() {
-    const boxW = 54;
-    const boxH = 14;
-    const boxX = Math.floor((100 - boxW) / 2);
-    const boxY = Math.floor((34 - boxH) / 2);
-
-    this.grid.drawBox(boxX, boxY, boxW, boxH, 'SYSTEM TERMINATED');
-    this.grid.drawString(boxX + 16, boxY + 3, '† OPERATIVE TERMINATED †', '#ffffff');
-    this.grid.drawString(boxX + 12, boxY + 5, `ROGUES VANQUISHED: ${this.player.kills}`, '#cccccc');
-    this.grid.drawString(boxX + 12, boxY + 7, `FINAL SCORE: ${this.player.score} PTS`, '#cccccc');
-
-    this.grid.drawString(boxX + 10, boxY + 10, '>>> PRESS [ R ] TO RESPAWN <<<', '#ffffff');
-    this.grid.drawString(boxX + 12, boxY + 11, '[ PRESS ESC FOR MAIN MENU ]', '#888888');
+    ctx.restore();
   }
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('DOMContentLoaded', () => {
-    new Game();
-  });
-}
+// Start game instance on DOM ready
+window.addEventListener('DOMContentLoaded', () => {
+  new TinyGlyphsApp();
+});

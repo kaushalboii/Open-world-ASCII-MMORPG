@@ -1,37 +1,17 @@
-// Comprehensive Input controller for Tiny Glyphs
-// Supports keyboard, mouse aiming, and key state buffering
+// Comprehensive Input controller for Tiny Glyphs - PixelFX Edition
+// Supports keyboard, mouse, and mobile touch pads with single press buffering
 
 export class Input {
   constructor(canvas) {
     this.canvas = canvas;
 
-    this.keys = {
-      up: false,
-      down: false,
-      left: false,
-      right: false,
-      slash: false,
-      dash: false,
-      block: false,
-      restart: false
-    };
-
-    // Edge-triggered keypress events (single press detection)
-    this.justPressed = {
-      slash: false,
-      dash: false,
-      jump: false,
-      restart: false,
-      mute: false
-    };
+    this.activeKeys = new Set();
+    this.justPressed = new Set();
 
     this.mouse = {
       x: 0,
       y: 0,
       down: false,
-      rightDown: false,
-      worldX: 0,
-      worldY: 0
     };
 
     this.setupListeners();
@@ -39,93 +19,19 @@ export class Input {
 
   setupListeners() {
     window.addEventListener('keydown', (e) => {
-      // Prevent default scrolling for game keys
+      // Prevent browser scroll on game controls
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
       }
 
-      switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          if (!this.keys.up) this.justPressed.jump = true;
-          this.keys.up = true;
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          this.keys.down = true;
-          break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          this.keys.left = true;
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          this.keys.right = true;
-          break;
-        case 'Space':
-          if (!this.keys.slash) this.justPressed.jump = true;
-          this.keys.slash = true;
-          break;
-        case 'KeyJ':
-          if (!this.keys.slash) this.justPressed.slash = true;
-          this.keys.slash = true;
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
-        case 'KeyK':
-        case 'KeyE':
-          if (!this.keys.dash) this.justPressed.dash = true;
-          this.keys.dash = true;
-          break;
-        case 'KeyQ':
-        case 'KeyE':
-          this.keys.block = true;
-          break;
-        case 'KeyR':
-          if (!this.keys.restart) this.justPressed.restart = true;
-          this.keys.restart = true;
-          break;
-        case 'KeyM':
-          this.justPressed.mute = true;
-          break;
+      if (!this.activeKeys.has(e.code)) {
+        this.justPressed.add(e.code);
       }
+      this.activeKeys.add(e.code);
     });
 
     window.addEventListener('keyup', (e) => {
-      switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          this.keys.up = false;
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          this.keys.down = false;
-          break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          this.keys.left = false;
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          this.keys.right = false;
-          break;
-        case 'Space':
-        case 'KeyJ':
-          this.keys.slash = false;
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
-        case 'KeyK':
-          this.keys.dash = false;
-          break;
-        case 'KeyQ':
-        case 'KeyE':
-          this.keys.block = false;
-          break;
-        case 'KeyR':
-          this.keys.restart = false;
-          break;
-      }
+      this.activeKeys.delete(e.code);
     });
 
     this.canvas.addEventListener('mousemove', (e) => {
@@ -137,50 +43,73 @@ export class Input {
     });
 
     this.canvas.addEventListener('mousedown', (e) => {
-      if (e.button === 0) {
-        this.mouse.down = true;
-        this.justPressed.slash = true;
-      } else if (e.button === 2) {
-        e.preventDefault();
-        this.mouse.rightDown = true;
-        this.justPressed.dash = true;
-      }
+      this.mouse.down = true;
+      this.justPressed.add('Mouse0');
+      this.activeKeys.add('Mouse0');
     });
 
-    this.canvas.addEventListener('mouseup', (e) => {
-      if (e.button === 0) this.mouse.down = false;
-      if (e.button === 2) this.mouse.rightDown = false;
+    window.addEventListener('mouseup', () => {
+      this.mouse.down = false;
+      this.activeKeys.delete('Mouse0');
     });
-
-    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
-  // Clear edge-triggered single press flags at end of frame
-  update() {
-    this.justPressed.slash = false;
-    this.justPressed.dash = false;
-    this.justPressed.jump = false;
-    this.justPressed.restart = false;
-    this.justPressed.mute = false;
-  }
-
-  getMovementVector() {
-    let dx = 0;
-    let dy = 0;
-
-    if (this.keys.left) dx -= 1;
-    if (this.keys.right) dx += 1;
-    if (this.keys.up) dy -= 1;
-    if (this.keys.down) dy += 1;
-
-    // Normalize diagonal movement
-    if (dx !== 0 && dy !== 0) {
-      const invSqrt2 = 0.70710678;
-      dx *= invSqrt2;
-      dy *= invSqrt2;
+  isDown(action) {
+    switch (action) {
+      case 'left':
+        return this.activeKeys.has('ArrowLeft') || this.activeKeys.has('KeyA') || this.activeKeys.has('TouchLeft');
+      case 'right':
+        return this.activeKeys.has('ArrowRight') || this.activeKeys.has('KeyD') || this.activeKeys.has('TouchRight');
+      case 'jump':
+        return this.activeKeys.has('ArrowUp') || this.activeKeys.has('KeyW') || this.activeKeys.has('Space') || this.activeKeys.has('TouchJump');
+      case 'punch':
+      case 'combo':
+        return this.activeKeys.has('KeyJ') || this.activeKeys.has('KeyZ') || this.activeKeys.has('Mouse0') || this.activeKeys.has('TouchPunch');
+      case 'dash':
+        return this.activeKeys.has('KeyL') || this.activeKeys.has('KeyC') || this.activeKeys.has('ShiftLeft') || this.activeKeys.has('TouchDash');
+      case 'flask':
+        return this.activeKeys.has('KeyK') || this.activeKeys.has('KeyE') || this.activeKeys.has('TouchFlask');
+      case 'stomp':
+        return this.activeKeys.has('KeyU') || this.activeKeys.has('TouchStomp');
+      case 'lightning':
+        return this.activeKeys.has('KeyO') || this.activeKeys.has('TouchLightning');
+      default:
+        return this.activeKeys.has(action);
     }
+  }
 
-    return { dx, dy };
+  wasJustPressed(action) {
+    switch (action) {
+      case 'jump':
+        return this.justPressed.has('ArrowUp') || this.justPressed.has('KeyW') || this.justPressed.has('Space') || this.justPressed.has('TouchJump');
+      case 'punch':
+        return this.justPressed.has('KeyJ') || this.justPressed.has('KeyZ') || this.justPressed.has('Mouse0') || this.justPressed.has('TouchPunch');
+      case 'dash':
+        return this.justPressed.has('KeyL') || this.justPressed.has('KeyC') || this.justPressed.has('ShiftLeft') || this.justPressed.has('TouchDash');
+      case 'flask':
+        return this.justPressed.has('KeyK') || this.justPressed.has('KeyE') || this.justPressed.has('TouchFlask');
+      case 'stomp':
+        return this.justPressed.has('KeyU') || this.justPressed.has('TouchStomp');
+      case 'lightning':
+        return this.justPressed.has('KeyO') || this.justPressed.has('TouchLightning');
+      default:
+        return this.justPressed.has(action);
+    }
+  }
+
+  // Clear single-press edge states at end of tick
+  update() {
+    this.justPressed.clear();
+  }
+
+  setTouch(key, isPressed) {
+    if (isPressed) {
+      if (!this.activeKeys.has(key)) {
+        this.justPressed.add(key);
+      }
+      this.activeKeys.add(key);
+    } else {
+      this.activeKeys.delete(key);
+    }
   }
 }
-
