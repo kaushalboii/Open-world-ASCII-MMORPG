@@ -228,7 +228,8 @@ export class CrtCanvasRenderer {
       const rowCells = buffer[r];
       const dy = r * cellH;
       for (let c = 0; c < GRID_COLS; c++) {
-        const [ch, g] = rowCells[c];
+        const [rawCh, g] = rowCells[c];
+        const ch = normalizeGlyph(rawCh);
         if (ch === ' ') continue;
         let idx = ch.charCodeAt(0) - ASCII_MIN;
         if (idx <= 0 || idx >= ASCII_COUNT) idx = 14;
@@ -284,7 +285,8 @@ export class CrtCanvasRenderer {
         const y = r * this.cellH + 2;
         const rowCells = buffer[r];
         for (let c = 0; c < GRID_COLS; c++) {
-          const [ch, g] = rowCells[c];
+          const [rawCh, g] = rowCells[c];
+          const ch = normalizeGlyph(rawCh);
           if (g === grade && ch !== ' ') {
             ctx.fillText(ch, c * this.cellW, y);
           }
@@ -303,7 +305,8 @@ export class CrtCanvasRenderer {
       const y = r * this.cellH + 2;
       const rowCells = buffer[r];
       for (let c = 0; c < GRID_COLS; c++) {
-        const [ch, g] = rowCells[c];
+        const [rawCh, g] = rowCells[c];
+        const ch = normalizeGlyph(rawCh);
         if (g === GRADE_BRIGHT && ch !== ' ') {
           ctx.fillText(ch, c * this.cellW, y);
         }
@@ -311,6 +314,10 @@ export class CrtCanvasRenderer {
     }
     ctx.shadowBlur = 0;
   }
+}
+
+function normalizeGlyph(raw) {
+  return typeof raw === 'string' && raw.length > 0 ? raw[0] : ' ';
 }
 
 function dprOr1(dpr) {

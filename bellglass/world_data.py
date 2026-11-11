@@ -182,16 +182,18 @@ def _paint_hollow_box(
     y0: int,
     x1: int,
     y1: int,
-    wall_glyph: str = "#",
-    floor_glyph: str = ".",
+    wall_glyph = "#",
+    floor_glyph = ".",
     floor_kind: str = TILE_STONE,
 ) -> None:
     for y in range(y0, y1 + 1):
         for x in range(x0, x1 + 1):
             if x in (x0, x1) or y in (y0, y1):
-                wm.set_tile(x, y, wall_glyph, TILE_WALL)
+                wg = wall_glyph(x, y) if callable(wall_glyph) else wall_glyph
+                wm.set_tile(x, y, wg, TILE_WALL)
             else:
-                wm.set_tile(x, y, floor_glyph, floor_kind)
+                fg = floor_glyph(x, y) if callable(floor_glyph) else floor_glyph
+                wm.set_tile(x, y, fg, floor_kind)
 
 
 def _earth_glyph(x: int, y: int) -> str:

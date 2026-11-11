@@ -217,6 +217,31 @@ class BellglassTests(unittest.TestCase):
         buf_duel = game.render_buffer()
         self.assertIn("DUEL: Pike-Warden", "".join(ch for ch, _ in buf_duel[33]))
 
+    def test_world_glyphs_all_single_ascii_strings_and_hollow_boxes(self) -> None:
+        wm = build_marren_world()
+        self.assertEqual((wm.width, wm.height), (240, 88))
+        for y in range(wm.height):
+            for x in range(wm.width):
+                ch = wm.glyphs[y][x]
+                self.assertIsInstance(ch, str, f"Non-string glyph at ({x}, {y}): {ch!r}")
+                self.assertEqual(len(ch), 1, f"Bad glyph length at ({x}, {y}): {ch!r}")
+                self.assertTrue(32 <= ord(ch) <= 126, f"Non-ASCII glyph at ({x}, {y}): {ch!r}")
+
+        game = BellglassGame(save_path=None)
+        game.handle_action("confirm")
+        for px, py in ((27, 67), (50, 62), (18, 29)):
+            game.player.x, game.player.y = px, py
+            for _ in range(8):
+                game.update(0.05)
+                buf = game.render_buffer()
+                self.assertEqual(len(buf), GRID_ROWS)
+                for row in buf:
+                    self.assertEqual(len(row), GRID_COLS)
+                    for ch, _ in row:
+                        self.assertIsInstance(ch, str)
+                        self.assertEqual(len(ch), 1)
+                        self.assertTrue(32 <= ord(ch) <= 126)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -264,10 +264,58 @@ globalThis.document = prevDoc;
 const audio = new BellAudio();
 audio.play('fork'); // Safe no-op without browser AudioContext
 
+// Verify every world map cell is a single-cell printable ASCII string (32..126),
+// catching any unresolved glyph generator passed into paintRect/paintHollowBox.
+for (let y = 0; y < wm.height; y++) {
+  for (let x = 0; x < wm.width; x++) {
+    const ch = wm.glyphs[y][x];
+    assert.equal(typeof ch, 'string', `Expected string glyph at (${x}, ${y}), got ${typeof ch}`);
+    assert.equal(ch.length, 1, `Expected 1-char glyph at (${x}, ${y}), got ${JSON.stringify(ch)}`);
+    const code = ch.charCodeAt(0);
+    assert.ok(code >= 32 && code <= 126, `Expected printable ASCII at (${x}, ${y}), got ${code}`);
+  }
+}
+
+// Multi-frame render across Tidemouth Pier, Toll Shed (50, 62), and Orchard Root-House (18, 29)
+globalThis.document = {
+  createElement(tag) {
+    assert.equal(tag, 'canvas');
+    return { width: 0, height: 0, getContext: () => makeMockCtx() };
+  },
+};
+const safeAtlasRenderer = new CrtCanvasRenderer(mockCanvas);
+const multiFrameGame = new BellglassGame();
+multiFrameGame.handleAction('confirm');
+for (const [px, py] of [[27, 67], [50, 62], [18, 29]]) {
+  multiFrameGame.player.x = px;
+  multiFrameGame.player.y = py;
+  for (let frame = 0; frame < 15; frame++) {
+    multiFrameGame.update(0.05);
+    const frameBuf = multiFrameGame.renderBuffer();
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const [ch] = frameBuf[r][c];
+        assert.equal(typeof ch, 'string', `Non-string frame cell at (${px},${py}) frame=${frame} [${r},${c}]`);
+        assert.equal(ch.length, 1);
+      }
+    }
+    safeAtlasRenderer.draw(frameBuf);
+    renderer.draw(frameBuf);
+  }
+}
+
+// Defensive guard: non-string cell in a frame buffer must never throw inside draw()
+const corruptBuf = multiFrameGame.renderBuffer();
+corruptBuf[0][0] = [() => '#', 2];
+safeAtlasRenderer.draw(corruptBuf);
+renderer.draw(corruptBuf);
+globalThis.document = prevDoc;
+
 console.log(
   JSON.stringify({
     webReachability: 'PASS',
     simulationWalkthrough: 'PASS',
+    worldGlyphsValidated: wm.width * wm.height,
     canvasFillTextCalls: fillTextCalls,
     atlasDrawImageCalls: drawImageCalls,
     gridDimensions: [GRID_COLS, GRID_ROWS],

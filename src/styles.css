@@ -67,6 +67,8 @@ canvas#crt {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
   font-size: 11px;
   letter-spacing: 0.08em;
   color: var(--phosphor-mist);
@@ -75,7 +77,8 @@ canvas#crt {
 
 .bezel-actions {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 8px 14px;
 }
 
 .bezel-btn {
@@ -84,6 +87,7 @@ canvas#crt {
   color: var(--phosphor-mist);
   font: inherit;
   letter-spacing: inherit;
+  white-space: nowrap;
   cursor: pointer;
   padding: 2px 4px;
 }
@@ -98,14 +102,15 @@ canvas#crt {
   max-width: 520px;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 8px 10px;
   padding-top: 4px;
 }
 
 .touch-cluster {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
 }
 
 .touch-key {
@@ -114,14 +119,39 @@ canvas#crt {
   color: var(--phosphor-dim);
   font: inherit;
   font-size: 12px;
-  padding: 8px 11px;
-  min-width: 40px;
+  padding: 8px 10px;
+  min-width: 38px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
 .touch-key:active {
   background: #2b1905;
   color: var(--phosphor-lit);
+}
+
+@media (max-width: 640px) {
+  .bezel-strip {
+    justify-content: center;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+  .bezel-actions {
+    justify-content: center;
+    gap: 6px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .touch-deck {
+    justify-content: center;
+  }
+  .touch-key {
+    font-size: 11px;
+    padding: 7px 7px;
+    min-width: 32px;
+  }
 }
 
 @media (pointer: coarse) {

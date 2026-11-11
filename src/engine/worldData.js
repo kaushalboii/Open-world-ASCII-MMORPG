@@ -48,9 +48,11 @@ function paintHollowBox(wm, x0, y0, x1, y1, wallGlyph = '#', floorGlyph = '.', f
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
       if (x === x0 || x === x1 || y === y0 || y === y1) {
-        wm.setTile(x, y, wallGlyph, TILE_WALL);
+        const wg = typeof wallGlyph === 'function' ? wallGlyph(x, y) : wallGlyph;
+        wm.setTile(x, y, wg, TILE_WALL);
       } else {
-        wm.setTile(x, y, floorGlyph, floorKind);
+        const fg = typeof floorGlyph === 'function' ? floorGlyph(x, y) : floorGlyph;
+        wm.setTile(x, y, fg, floorKind);
       }
     }
   }
