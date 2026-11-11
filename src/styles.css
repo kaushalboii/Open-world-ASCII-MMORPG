@@ -1,0 +1,135 @@
+:root {
+  color-scheme: dark;
+  --void: #050301;
+  --bezel: #0d0803;
+  --seam: #291806;
+  --phosphor-mist: #744710;
+  --phosphor-dim: #bf7a1b;
+  --phosphor-lit: #f8aa34;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: var(--void);
+  color: var(--phosphor-dim);
+  font-family: 'IBM Plex Mono', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  overflow: hidden;
+  user-select: none;
+}
+
+.terminal-room {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  gap: 8px;
+  background: radial-gradient(circle at 50% 45%, #120b04 0%, #050301 76%);
+}
+
+.crt-frame {
+  position: relative;
+  border: 1px solid var(--seam);
+  background: #0a0602;
+  padding: 8px 10px;
+  box-shadow:
+    0 0 0 1px #170d03,
+    0 20px 60px rgba(0, 0, 0, 0.85),
+    0 0 42px rgba(248, 170, 52, 0.055);
+  max-width: min(100%, 1180px);
+  max-height: calc(100vh - 54px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+canvas#crt {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 76px);
+  aspect-ratio: 1144 / 760;
+  cursor: pointer;
+}
+
+.bezel-strip {
+  width: min(100%, 1164px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--phosphor-mist);
+  padding: 0 4px;
+}
+
+.bezel-actions {
+  display: flex;
+  gap: 14px;
+}
+
+.bezel-btn {
+  background: none;
+  border: none;
+  color: var(--phosphor-mist);
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.bezel-btn:hover {
+  color: var(--phosphor-lit);
+}
+
+.touch-deck {
+  display: none;
+  width: 100%;
+  max-width: 520px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.touch-cluster {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.touch-key {
+  background: #120b03;
+  border: 1px solid var(--seam);
+  color: var(--phosphor-dim);
+  font: inherit;
+  font-size: 12px;
+  padding: 8px 11px;
+  min-width: 40px;
+  cursor: pointer;
+}
+
+.touch-key:active {
+  background: #2b1905;
+  color: var(--phosphor-lit);
+}
+
+@media (pointer: coarse) {
+  .touch-deck {
+    display: flex;
+  }
+  canvas#crt {
+    max-height: calc(100vh - 156px);
+  }
+}

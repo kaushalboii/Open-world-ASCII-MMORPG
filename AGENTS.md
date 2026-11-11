@@ -1,28 +1,26 @@
-# Agent Guide — Open-world-ASCII-MMORPG / The Boundless Spiral
+# Agent Guide — Open-world-ASCII-MMORPG / Bellglass: The Drowned Province
 
 ## Game-Dev Skills (`awesome-gamedev-agent-skills`)
 
-This repository integrates the 77 game-development skills and master `router` from `awesome-gamedev-agent-skills` (Apache-2.0; notices in `.agents/THIRD_PARTY/awesome-gamedev-agent-skills/`).
+This repository integrates the game-development skills and master `router` from `awesome-gamedev-agent-skills` (Apache-2.0; notices in `.agents/THIRD_PARTY/awesome-gamedev-agent-skills/`).
 
 - All skills live flattened under `.agents/skills/<skill-name>/SKILL.md` (with `references/`, `scripts/`, `assets/` preserved inside each skill folder).
 - For any game-development request, start with `.agents/skills/router/SKILL.md` to classify the engine and task, then read only the selected `.agents/skills/<skill-name>/SKILL.md` files on demand.
 - Because the skills are flattened into `.agents/skills/`, resolve catalog references like `skills/<category>/<name>/SKILL.md` directly as `.agents/skills/<name>/SKILL.md`.
 
-## Active Project Contract (Custom JS Pixel & ASCII Engine)
+## Active Project Contract (Bellglass Dual Amber CRT Engine)
 
-The primary web project (`The Boundless Spiral: Ascension of Zero`) uses a custom vanilla ES-module engine — **keep it on this engine** (see `.agents/skills/router/references/custom-engines.md`) rather than scaffolding Godot, Unity, or Phaser unless explicitly asked to start a separate project.
+The project implements **BELLGLASS: The Drowned Province** across both a pure-vanilla Web ES-module engine and a parity Python 3.9+ package — **keep it on this custom ASCII CRT engine** (see `.agents/skills/router/references/custom-engines.md`) rather than scaffolding Godot, Unity, or Phaser unless explicitly requested.
 
-- **Build & run:** `npm run dev` (Vite `^6.0.7` on port `3000`), `npm run build` (outputs `dist/`), `npm run preview`.
-- **Entry & loop:** `index.html` -> `src/main.js` (`SpiralApp`, `requestAnimationFrame` delta-time loop, screen state machine).
-- **Rendering pipeline:**
-  - `320x180` internal pixel framebuffer (`createFrame`, `clearFrame`, `composite` in `src/pixeleffects/core/index.js`) scaled `3x` onto a `960x540` `<canvas>`, plus a 2D canvas overlay pass (`PixelWorld.drawOverlay`).
-  - Procedural 3D IK character rig & shading (`src/pixeleffects/core/rig.js`, `poses.js`, `act.js`, `painter.js`).
-  - `RigExplorer` (`src/pixeleffects/studio/RigExplorer.js`) renders `pixel`, `ascii` (Smooth ASCII grid), `hybrid`, and `bones` modes; `StudioManager` showcases 244 effects across 21 categories (`src/pixeleffects/fx/`).
-- **Gameplay & audio:** `src/pixeleffects/game/PixelPlayer.js`, `PixelWorld.js`, `UpgradeShop.js`, `StoryCodex.js`, `src/engine/Input.js`, `src/audio/SoundSynth.js`.
-
-## Python ASCII-Pixel Projects
-
-When building Python ASCII games or ASCII-pixel prototypes in this workspace:
-- Use `.agents/skills/pygame-core/SKILL.md` (`pygame-ce`) when targeting a graphical window with exact grid-aligned ASCII sprites/tiles, or terminal libraries (`curses`, `rich`, `textual`, `python-tcod`) for pure terminal ASCII rendering.
-- Compose with `.agents/skills/roguelike/SKILL.md`, `platformer`, `rpg`, `tower-defense`, `card-game`, `puzzle`, `survival-crafting`, `procedural-gen`, `game-feel`, `game-ai`, and `save-systems` as needed.
-
+- **Web Flagship (GitHub Pages root):**
+  - `index.html` -> [`src/main.js`](src/main.js) (`requestAnimationFrame` delta-time loop, capped at `0.05s`)
+  - Simulation, wall-shadow FOV lantern raycast, Tuning Fork wave acoustics, weather particles, and parry/stagger combat: [`src/engine/game.js`](src/engine/game.js), [`src/engine/worldData.js`](src/engine/worldData.js), [`src/engine/narrative.js`](src/engine/narrative.js), [`src/engine/palette.js`](src/engine/palette.js)
+  - Rendering & WebAudio: `104x38` HiDPI `<canvas>` 5-grade P3 Amber CRT rasterizer in [`src/engine/crtRenderer.js`](src/engine/crtRenderer.js) + procedural WebAudio synth in [`src/engine/audio.js`](src/engine/audio.js)
+  - Build: `npm run dev` (Vite `^6.0.7`, port `3000`), `npm run build` (`dist/`, `base: './'`), deployed to GitHub Pages via `.github/workflows/deploy.yml`.
+- **Python ASCII Edition:**
+  - Entry & CLI: [`play.py`](play.py) -> `bellglass/main.py` (`python3 play.py` for zero-dependency `curses`, `--pygame` for optional `pygame-ce` window, `--headless-demo` for smoke simulation)
+  - Core modules: `bellglass/engine.py`, `bellglass/world_data.py`, `bellglass/narrative.py`, `bellglass/palette.py`, `bellglass/renderer_curses.py`, `bellglass/renderer_pygame.py`
+  - Glyph invariant: strictly single-cell printable ASCII (`32..126`) across all `104x38` frames so both terminal `curses` and `<canvas>` grids never suffer East-Asian width drift.
+- **Automated Verification:**
+  - Python suite: `python3 -m unittest discover -s tests -v`
+  - Web ES-module suite: `node tests/verify_web.mjs`
