@@ -1,16 +1,15 @@
 /**
- * HiDPI Canvas P3 Amber Phosphor CRT renderer locked symmetrically to 104x38 cells.
- * Pre-bakes a HiDPI glyph atlas (5 phosphor grades + Rank-4 glow row) and CRT overlay
- * so 60 FPS animation blits drawImage() calls instead of per-frame shadowBlur/fillText.
+ * HiDPI Canvas P3 Phosphor CRT renderer locked symmetrically to 104x38 cells.
+ * Pre-bakes a HiDPI glyph atlas (5 phosphor grades + Rank-4 glow row), a soft
+ * radial phosphor halation sprite for luminous objects, and a CRT overlay.
  */
 
 import {
-  AMBER_HEX,
-  BG_HEX,
   GRADE_BRIGHT,
   GRADE_GHOST,
   GRID_COLS,
   GRID_ROWS,
+  PHOSPHOR_THEMES,
 } from './palette.js';
 
 const FONT_STACK = "16px 'IBM Plex Mono', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace";
@@ -18,6 +17,7 @@ const ASCII_MIN = 32;
 const ASCII_MAX = 126;
 const ASCII_COUNT = ASCII_MAX - ASCII_MIN + 1;
 const GLOW_ROW = 5;
+const EMISSIVE_GLYPHS = new Set(['@', '*', 'B', 'O', '>', 'V', '!', '+', '(', ')', 'X', '/']);
 
 export class CrtCanvasRenderer {
   constructor(canvas) {
@@ -31,9 +31,11 @@ export class CrtCanvasRenderer {
     this.logicalW = GRID_COLS * this.cellW;
     this.logicalH = GRID_ROWS * this.cellH;
     this.crtEnabled = true;
+    this.themeIndex = 0;
     this.dpr = 1;
     this.vignette = null;
     this.atlas = null;
+    this.glowSprite = null;
     this.crtOverlay = null;
     this._brightQueue = [];
     this.resize();
@@ -45,6 +47,17 @@ export class CrtCanvasRenderer {
         })
         .catch(() => {});
     }
+  }
+
+  getTheme() {
+    return PHOSPHOR_THEMES[this.themeIndex] || PHOSPHOR_THEMES[0];
+  }
+
+  cyclePhosphor() {
+    this.themeIndex = (this.themeIndex + 1) % PHOSPHOR_THEMES.length;
+    this._buildAtlas();
+    this._buildGlowSprite();
+    return this.getTheme();
   }
 
   _createOffscreenCanvas(logicalW, logicalH, dpr) {
@@ -67,6 +80,7 @@ export class CrtCanvasRenderer {
       this.atlas = null;
       return;
     }
+    const theme = this.getTheme();
     const { canvas, ctx } = off;
     ctx.clearRect(0, 0, ASCII_COUNT * this.slotW, 6 * this.slotH);
     ctx.textBaseline = 'top';
@@ -75,10 +89,10 @@ export class CrtCanvasRenderer {
     for (let row = GRADE_GHOST; row <= GLOW_ROW; row++) {
       const grade = row === GLOW_ROW ? GRADE_BRIGHT : row;
       const py = row * this.slotH + this.pad + 2;
-      ctx.fillStyle = AMBER_HEX[grade];
+      ctx.fillStyle = theme.grades[grade];
       if (row === GLOW_ROW) {
-        ctx.shadowColor = 'rgba(255, 196, 86, 0.72)';
-        ctx.shadowBlur = 6;
+        ctx.shadowColor = theme.glowRgba;
+        ctx.shadowBlur = 7;
       } else {
         ctx.shadowBlur = 0;
       }
@@ -90,6 +104,24 @@ export class CrtCanvasRenderer {
     }
     ctx.shadowBlur = 0;
     this.atlas = canvas;
+  }
+
+  _buildGlowSprite() {
+    const size = 48;
+    const off = this._createOffscreenCanvas(size, size, this.dpr);
+    if (!off) {
+      this.glowSprite = null;
+      return;
+    }
+    const theme = this.getTheme();
+    const { canvas, ctx } = off;
+    const g = ctx.createRadialGradient(size * 0.5, size * 0.5, 2, size * 0.5, size * 0.5, size * 0.5);
+    g.addColorStop(0, theme.haloCore);
+    g.addColorStop(0.45, theme.haloMid);
+    g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    this.glowSprite = canvas;
   }
 
   _buildCrtOverlay() {
@@ -113,26 +145,27 @@ export class CrtCanvasRenderer {
 
   resize() {
     this.dpr = typeof window !== 'undefined' ? Math.min(2, window.devicePixelRatio || 1) : 1;
-    this.canvas.width = Math.round(this.logicalW * this.dpr);
-    this.canvas.height = Math.round(this.logicalH * this.dpr);
+    this.canvas.width = Math.round(this.logicalW * dprOr1(this.dpr));
+    this.canvas.height = Math.round(this.logicalH * dprOr1(this.dpr));
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.ctx.textBaseline = 'top';
     this.ctx.font = FONT_STACK;
 
-    // Build radial phosphor falloff once per resize
+    // Gentle radial CRT bezel falloff (preserved clear inside active play center)
     const grad = this.ctx.createRadialGradient(
       this.logicalW * 0.5,
       this.logicalH * 0.5,
-      this.logicalH * 0.36,
+      this.logicalH * 0.42,
       this.logicalW * 0.5,
       this.logicalH * 0.5,
-      this.logicalW * 0.65
+      this.logicalW * 0.68
     );
     grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    grad.addColorStop(1, 'rgba(4, 2, 0, 0.52)');
+    grad.addColorStop(1, 'rgba(3, 1, 0, 0.42)');
     this.vignette = grad;
 
     this._buildAtlas();
+    this._buildGlowSprite();
     this._buildCrtOverlay();
   }
 
@@ -149,13 +182,14 @@ export class CrtCanvasRenderer {
 
   draw(buffer) {
     const ctx = this.ctx;
-    ctx.fillStyle = BG_HEX;
+    const theme = this.getTheme();
+    ctx.fillStyle = theme.bg;
     ctx.fillRect(0, 0, this.logicalW, this.logicalH);
 
     if (this.atlas) {
       this._drawWithAtlas(ctx, buffer);
     } else {
-      this._drawFallback(ctx, buffer);
+      this._drawFallback(ctx, buffer, theme);
     }
 
     if (this.crtEnabled) {
@@ -197,9 +231,9 @@ export class CrtCanvasRenderer {
         const [ch, g] = rowCells[c];
         if (ch === ' ') continue;
         let idx = ch.charCodeAt(0) - ASCII_MIN;
-        if (idx <= 0 || idx >= ASCII_COUNT) idx = 14; // '.' fallback
+        if (idx <= 0 || idx >= ASCII_COUNT) idx = 14;
         if (g === GRADE_BRIGHT) {
-          brightQueue.push(c, r, idx);
+          brightQueue.push(c, r, idx, ch);
           continue;
         }
         const sx = (idx * slotW + pad) * dpr;
@@ -208,8 +242,22 @@ export class CrtCanvasRenderer {
       }
     }
 
+    // Blit subtle radial phosphor halation behind emissive Grade-4 symbols in playfield
+    if (this.crtEnabled && this.glowSprite) {
+      for (let i = 0; i < brightQueue.length; i += 4) {
+        const c = brightQueue[i];
+        const r = brightQueue[i + 1];
+        const ch = brightQueue[i + 3];
+        if (r >= 1 && r < GRID_ROWS - 4 && EMISSIVE_GLYPHS.has(ch)) {
+          const cx = c * cellW + cellW * 0.5;
+          const cy = r * cellH + cellH * 0.5;
+          ctx.drawImage(this.glowSprite, cx - 24, cy - 24, 48, 48);
+        }
+      }
+    }
+
     const brightSy = brightRow * slotH * dpr;
-    for (let i = 0; i < brightQueue.length; i += 3) {
+    for (let i = 0; i < brightQueue.length; i += 4) {
       const c = brightQueue[i];
       const r = brightQueue[i + 1];
       const idx = brightQueue[i + 2];
@@ -228,9 +276,9 @@ export class CrtCanvasRenderer {
     }
   }
 
-  _drawFallback(ctx, buffer) {
+  _drawFallback(ctx, buffer, theme) {
     for (let grade = GRADE_GHOST; grade < GRADE_BRIGHT; grade++) {
-      ctx.fillStyle = AMBER_HEX[grade];
+      ctx.fillStyle = theme.grades[grade];
       ctx.shadowBlur = 0;
       for (let r = 0; r < GRID_ROWS; r++) {
         const y = r * this.cellH + 2;
@@ -244,9 +292,9 @@ export class CrtCanvasRenderer {
       }
     }
 
-    ctx.fillStyle = AMBER_HEX[GRADE_BRIGHT];
+    ctx.fillStyle = theme.grades[GRADE_BRIGHT];
     if (this.crtEnabled) {
-      ctx.shadowColor = 'rgba(255, 196, 86, 0.72)';
+      ctx.shadowColor = theme.glowRgba;
       ctx.shadowBlur = 6;
     } else {
       ctx.shadowBlur = 0;
@@ -263,4 +311,8 @@ export class CrtCanvasRenderer {
     }
     ctx.shadowBlur = 0;
   }
+}
+
+function dprOr1(dpr) {
+  return dpr > 0 ? dpr : 1;
 }

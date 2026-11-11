@@ -219,7 +219,28 @@ const mockCanvas = {
     return { left: 0, top: 0, width: 1144, height: 760 };
   },
 };
+assert.ok(wm.decorLines.length >= 40, `Expected dense regional landmarks, got ${wm.decorLines.length}`);
+
+modalCheck.screen = 'title';
+const titleBuf = modalCheck.renderBuffer();
+let titleNonSpace = 0;
+for (const row of titleBuf) {
+  for (const [ch] of row) if (ch !== ' ') titleNonSpace++;
+}
+assert.ok(titleNonSpace > 1400, `Expected rich title diorama density, saw ${titleNonSpace}`);
+
+modalCheck.handleAction('confirm');
+modalCheck.player.x = 26;
+modalCheck.player.y = 67;
+const hesterRow33 = modalCheck.renderBuffer()[33].map(([c]) => c).join('');
+assert.ok(hesterRow33.includes('--[ [E] Speak: Old Hester ]--'), `Expected tight Hester prompt on Row 33, got: ${hesterRow33}`);
+
 const renderer = new CrtCanvasRenderer(mockCanvas);
+assert.equal(renderer.getTheme().id, 'amber');
+const nextTheme = renderer.cyclePhosphor();
+assert.equal(nextTheme.id, 'verdigris');
+assert.equal(renderer.cyclePhosphor().id, 'ivory');
+assert.equal(renderer.cyclePhosphor().id, 'amber');
 game.screen = 'title';
 renderer.draw(game.renderBuffer());
 assert.ok(fillTextCalls > 150, `Expected substantial fallback fillText draw, saw ${fillTextCalls}`);

@@ -57,19 +57,44 @@ function paintHollowBox(wm, x0, y0, x1, y1, wallGlyph = '#', floorGlyph = '.', f
 }
 
 function earthGlyph(x, y) {
-  const h = (x * 37 + y * 91) % 13;
+  const h = (x * 37 + y * 91) % 19;
   if (h === 0) return ',';
   if (h === 1 || h === 2) return '`';
   if (h === 3 || h === 4) return "'";
+  if (h === 5) return ';';
+  if (h === 6) return '"';
   return '.';
 }
 
 function saltSandGlyph(x, y) {
-  const h = (x * 53 + y * 19) % 11;
+  const h = (x * 53 + y * 19) % 15;
   if (h < 2) return "'";
   if (h < 4) return ',';
   if (h === 5) return '`';
+  if (h === 6) return '_';
+  if (h === 7) return ';';
   return '.';
+}
+
+function stoneGlyph(x, y) {
+  const h = (x * 41 + y * 67) % 17;
+  if (h === 0 || h === 1) return '_';
+  if (h === 2) return ',';
+  if (h === 3) return ';';
+  return '.';
+}
+
+function timberGlyph(x, y) {
+  return (x + y * 2) % 5 === 0 ? '-' : '=';
+}
+
+function cliffGlyph(x, y) {
+  const h = (x * 29 + y * 73) % 11;
+  if (h < 2) return 'A';
+  if (h === 2) return 'M';
+  if (h === 3) return '/';
+  if (h === 4) return '\\';
+  return '^';
 }
 
 function waterGlyph(x, y) {
@@ -124,18 +149,18 @@ export function buildMarrenWorld() {
     decorLines: [],
   };
 
-  // Outer perimeter cliffs
-  paintRect(wm, 0, 0, WORLD_W - 1, 3, '^', TILE_WALL);
-  paintRect(wm, 0, WORLD_H - 2, WORLD_W - 1, WORLD_H - 1, '^', TILE_WALL);
-  paintRect(wm, 0, 0, 3, WORLD_H - 1, '^', TILE_WALL);
-  paintRect(wm, WORLD_W - 4, 0, WORLD_W - 1, WORLD_H - 1, '^', TILE_WALL);
+  // Outer rugged crag perimeter cliffs
+  paintRect(wm, 0, 0, WORLD_W - 1, 3, cliffGlyph, TILE_WALL);
+  paintRect(wm, 0, WORLD_H - 2, WORLD_W - 1, WORLD_H - 1, cliffGlyph, TILE_WALL);
+  paintRect(wm, 0, 0, 3, WORLD_H - 1, cliffGlyph, TILE_WALL);
+  paintRect(wm, WORLD_W - 4, 0, WORLD_W - 1, WORLD_H - 1, cliffGlyph, TILE_WALL);
 
   // 1. TIDEMOUTH PIER
   paintRect(wm, 16, 56, 62, 74, earthGlyph, TILE_MUD);
-  paintRect(wm, 8, 66, 26, 71, '=', TILE_TIMBER);
+  paintRect(wm, 8, 66, 26, 71, timberGlyph, TILE_TIMBER);
   paintHollowBox(wm, 10, 58, 18, 65, '#', ':', TILE_STONE);
   wm.setTile(14, 65, '.', TILE_STONE);
-  paintHollowBox(wm, 46, 59, 55, 65, '#', '.', TILE_STONE);
+  paintHollowBox(wm, 46, 59, 55, 65, '#', stoneGlyph, TILE_STONE);
   wm.setTile(46, 62, '%', TILE_SALT);
   paintRect(wm, 20, 62, 45, 63, ':', TILE_ROAD);
   paintRect(wm, 32, 52, 37, 63, ':', TILE_ROAD);
@@ -148,17 +173,18 @@ export function buildMarrenWorld() {
   paintRect(wm, 32, 29, 37, 56, ':', TILE_ROAD);
   paintRect(wm, 22, 34, 78, 37, ':', TILE_ROAD);
   paintRect(wm, 55, 37, 60, 54, ':', TILE_ROAD);
-  for (const [tx, ty] of [
+  const orchardTrees = [
     [14, 24], [20, 24], [28, 25], [41, 26], [62, 25], [69, 27],
     [13, 39], [26, 40], [42, 39], [48, 41], [66, 42], [70, 48],
     [29, 47], [45, 50], [14, 53], [64, 52],
-  ]) {
+  ];
+  for (const [tx, ty] of orchardTrees) {
     wm.setTile(tx, ty, 'Y', TILE_TREE);
   }
-  paintHollowBox(wm, 12, 25, 24, 33, '#', '.', TILE_STONE);
+  paintHollowBox(wm, 12, 25, 24, 33, '#', stoneGlyph, TILE_STONE);
   wm.setTile(24, 29, '%', TILE_SALT);
   paintRect(wm, 25, 29, 32, 30, ':', TILE_ROAD);
-  paintRect(wm, 54, 31, 61, 37, '=', TILE_STONE);
+  paintRect(wm, 54, 31, 61, 37, stoneGlyph, TILE_STONE);
   wm.setTile(55, 32, '+', TILE_PILLAR);
   wm.setTile(60, 32, '+', TILE_PILLAR);
 
@@ -346,14 +372,85 @@ export function buildMarrenWorld() {
   ];
 
   wm.decorLines = [
-    { x: 11, y: 56, lines: ['  /|\\  ', ' /_*_\\ ', ' |:::| '] },
-    { x: 5, y: 72, lines: ['   /|  ', ' /===\\ ', ' \\___/ '] },
-    { x: 55, y: 31, lines: [' /^B^\\ ', ' |   | '] },
-    { x: 124, y: 11, lines: [' /^B^\\ ', ' | | | '] },
-    { x: 170, y: 38, lines: [' /^B^\\ ', ' |   | '] },
-    { x: 217, y: 64, lines: [' /_B_\\ ', ' /   \\ '] },
-    { x: 209, y: 6, lines: ['  /__B__\\ ', ' /|     |\\'] },
-    { x: 198, y: 72, lines: ['   /|   /|   /|   ', '__/_|__/_|__/_|___'] },
+    // Tidemouth Pier & Estuary Harbor
+    {
+      x: 10,
+      y: 53,
+      lines: [
+        '   .|.   ',
+        '  /_*_\\  ',
+        ' -|:::|- ',
+        '  |:.:|  ',
+        ' /|:::|\\ ',
+        '/=|::.|=\\',
+      ],
+    },
+    { x: 11, y: 60, lines: ['[=]  [o]', '   ..   ', '[#]  [=]'] },
+    { x: 5, y: 72, lines: ['    /|   ', '   / |   ', ' /===+\\  ', ' \\_____/ '] },
+    { x: 8, y: 61, lines: ['  /|  ', ' /==\\ ', ' \\__/ '] },
+    { x: 29, y: 73, lines: ['   /|   ', ' /====\\ ', ' \\____/ '] },
+    { x: 18, y: 65, lines: ['[o][#]'] },
+    { x: 8, y: 71, lines: ['|==|==|==|==|==|==|'] },
+    { x: 45, y: 58, lines: [' /========\\ ', '/==========\\'] },
+    { x: 47, y: 60, lines: ['[=]  [#]'] },
+    { x: 28, y: 60, lines: [' _|_ ', '|(I)|'] },
+    { x: 64, y: 71, lines: ['\\|/  \\|/'] },
+
+    // Sunken Orchard Reeds, Ruined Mill, Root-House & Belfry
+    ...orchardTrees
+      .filter(([, ty]) => ty < 52)
+      .map(([tx, ty]) => ({
+        x: tx - 2,
+        y: ty - 1,
+        lines: [' .-. ', '( % )', '  Y  '],
+      })),
+    { x: 13, y: 45, lines: ['\\|/ i \\|/', ' ~ . ~ '] },
+    { x: 46, y: 26, lines: ['i \\|/  i'] },
+    { x: 13, y: 24, lines: ['/===+===\\'] },
+    { x: 13, y: 27, lines: ['[o] [=]'] },
+    { x: 54, y: 29, lines: ['  /^\\  ', ' |(_)| ', '/==B==\\', '|     |'] },
+
+    // Bramwell Causeway Arches, Toll-Gate & South Beacon Cairn
+    { x: 84, y: 59, lines: ['| /==\\ |', '| |  | |'] },
+    { x: 98, y: 59, lines: ['| /==\\ |', '| |  | |'] },
+    { x: 120, y: 59, lines: ['| /==\\ |', '| |  | |'] },
+    { x: 134, y: 59, lines: ['| /==\\ |', '| |  | |'] },
+    { x: 108, y: 51, lines: ['/#===#\\', '|v| |v|'] },
+    { x: 108, y: 59, lines: ['|=====|', '\\#===#/'] },
+    { x: 120, y: 72, lines: ['  /|\\  ', ' / * \\ ', '[=====]'] },
+
+    // St. Jude's Flooded Nave Cathedral & Tenor Spire
+    { x: 80, y: 5, lines: ['  /^\\     ( * )     /^\\  ', ' /===\\   /|===|\\   /===\\ '] },
+    { x: 109, y: 14, lines: ['~~~===~~~', '  |   |  '] },
+    { x: 109, y: 31, lines: ['~~~===~~~', ' /     \\ '] },
+    { x: 89, y: 27, lines: ['i * i'] },
+    { x: 124, y: 9, lines: ['  /|\\  ', ' /^B^\\ ', ' |(|)| ', '/=====\\'] },
+    { x: 120, y: 12, lines: ['[+] [=]', '       ', '[+] [=]'] },
+
+    // Kiln-Town of Redwick Coke Ovens, Marrow Forge & Spire
+    { x: 154, y: 40, lines: [' .~.~. ', ' /###\\ ', '| (*) |'] },
+    { x: 185, y: 40, lines: [' .~.~. ', ' /###\\ ', '| (*) |'] },
+    { x: 191, y: 47, lines: [' .~.~. ', ' /###\\ ', '| (*) |'] },
+    { x: 157, y: 45, lines: [' /======\\ ', '/========\\'] },
+    { x: 159, y: 48, lines: ['[**] [#]'] },
+    { x: 170, y: 37, lines: ['  /^\\  ', ' /(|)\\ ', ' |===| '] },
+    { x: 182, y: 56, lines: ['[#] [o] [o]'] },
+    { x: 182, y: 63, lines: ['[=] [=] [#]'] },
+
+    // Low Sunder Flats, Whalebone Ribs, SS Cormorant & Breakwater Crane
+    { x: 198, y: 69, lines: ['   /|\\      /|\\   ', '  /_|_\\    /_|_\\  ', '__/___\\____/___\\__'] },
+    { x: 195, y: 73, lines: [' /==\\', '|    ', ' \\==/'] },
+    { x: 201, y: 82, lines: ['  \\==\\__@'] },
+    { x: 156, y: 73, lines: ['( /   \\ )', '  \\___/  '] },
+    { x: 179, y: 80, lines: [' \\ | / ', '  \\|/  '] },
+    { x: 215, y: 61, lines: ['  /|==+==>', ' /_|_B_\\  ', '/       \\ '] },
+
+    // High Foundry Gantries, Smokestacks & Master Dam Bastion
+    { x: 154, y: 4, lines: ['  |##|    |##|  ', '  |##|    |##|  '] },
+    { x: 164, y: 11, lines: ['|=/==\\=|'] },
+    { x: 196, y: 25, lines: ['|=/==\\=|'] },
+    { x: 186, y: 15, lines: ['(___)'] },
+    { x: 208, y: 5, lines: ['  /__B__\\  ', ' /| (|) |\\ ', '|==|===|==|'] },
   ];
 
   return wm;

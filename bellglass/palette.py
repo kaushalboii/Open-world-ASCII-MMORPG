@@ -6,20 +6,20 @@ import unicodedata
 from typing import Dict, Tuple
 
 # Classic 585nm Amber P3 Phosphor luminance ramp on warm obsidian bed
-BG_RGB: Tuple[int, int, int] = (10, 6, 2)
+BG_RGB: Tuple[int, int, int] = (7, 4, 1)
 
-GRADE_GHOST = 0   # Unlit memory / rainfall haze
-GRADE_MIST = 1    # Fogged reeds / dim margins / water ripples
+GRADE_GHOST = 0   # Unlit twilight silhouette / distant fog
+GRADE_MIST = 1    # Fogged reeds / surf margins / ruins
 GRADE_DIM = 2     # Midground masonry, trees, narrative prose
 GRADE_LIT = 3     # Warm lantern light, blades, hero, key structures
 GRADE_BRIGHT = 4  # Sparks, lightning crest, parries, bell flash, beacon
 
 AMBER_RGB: Dict[int, Tuple[int, int, int]] = {
-    GRADE_GHOST: (63, 38, 8),
-    GRADE_MIST: (116, 71, 16),
-    GRADE_DIM: (191, 122, 27),
-    GRADE_LIT: (248, 170, 52),
-    GRADE_BRIGHT: (255, 227, 155),
+    GRADE_GHOST: (82, 50, 12),
+    GRADE_MIST: (148, 91, 24),
+    GRADE_DIM: (214, 139, 36),
+    GRADE_LIT: (255, 181, 62),
+    GRADE_BRIGHT: (255, 238, 184),
 }
 
 AMBER_HEX: Dict[int, str] = {

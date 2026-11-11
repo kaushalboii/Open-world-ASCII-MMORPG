@@ -195,25 +195,61 @@ def _paint_hollow_box(
 
 
 def _earth_glyph(x: int, y: int) -> str:
-    h = (x * 37 + y * 91) % 13
+    h = (x * 37 + y * 91) % 19
     if h == 0:
         return ","
     if h in (1, 2):
         return "`"
     if h in (3, 4):
         return "'"
+    if h == 5:
+        return ";"
+    if h == 6:
+        return '"'
     return "."
 
 
 def _salt_sand_glyph(x: int, y: int) -> str:
-    h = (x * 53 + y * 19) % 11
+    h = (x * 53 + y * 19) % 15
     if h < 2:
         return "'"
     if h < 4:
         return ","
     if h == 5:
         return "`"
+    if h == 6:
+        return "_"
+    if h == 7:
+        return ";"
     return "."
+
+
+def _stone_glyph(x: int, y: int) -> str:
+    h = (x * 41 + y * 67) % 17
+    if h in (0, 1):
+        return "_"
+    if h == 2:
+        return ","
+    if h == 3:
+        return ";"
+    return "."
+
+
+def _timber_glyph(x: int, y: int) -> str:
+    return "-" if ((x + y * 2) % 5 == 0) else "="
+
+
+def _cliff_glyph(x: int, y: int) -> str:
+    h = (x * 29 + y * 73) % 11
+    if h < 2:
+        return "A"
+    if h == 2:
+        return "M"
+    if h == 3:
+        return "/"
+    if h == 4:
+        return "\\"
+    return "^"
 
 
 def _water_glyph(x: int, y: int) -> str:
@@ -233,19 +269,19 @@ def build_marren_world() -> WorldMap:
 
     wm = WorldMap(WORLD_W, WORLD_H, glyphs, kinds, region_ids)
 
-    # Outer cliff boundary
-    _paint_rect(wm, 0, 0, WORLD_W - 1, 3, "^", TILE_WALL)
-    _paint_rect(wm, 0, WORLD_H - 2, WORLD_W - 1, WORLD_H - 1, "^", TILE_WALL)
-    _paint_rect(wm, 0, 0, 3, WORLD_H - 1, "^", TILE_WALL)
-    _paint_rect(wm, WORLD_W - 4, 0, WORLD_W - 1, WORLD_H - 1, "^", TILE_WALL)
+    # Outer rugged crag cliff boundary
+    _paint_rect(wm, 0, 0, WORLD_W - 1, 3, _cliff_glyph, TILE_WALL)
+    _paint_rect(wm, 0, WORLD_H - 2, WORLD_W - 1, WORLD_H - 1, _cliff_glyph, TILE_WALL)
+    _paint_rect(wm, 0, 0, 3, WORLD_H - 1, _cliff_glyph, TILE_WALL)
+    _paint_rect(wm, WORLD_W - 4, 0, WORLD_W - 1, WORLD_H - 1, _cliff_glyph, TILE_WALL)
 
     # 1. TIDEMOUTH PIER (SW: X 6..68, Y 56..80)
     _paint_rect(wm, 16, 56, 62, 74, _earth_glyph, TILE_MUD)
-    _paint_rect(wm, 8, 66, 26, 71, "=", TILE_TIMBER)        # Wooden pier out over estuary
+    _paint_rect(wm, 8, 66, 26, 71, _timber_glyph, TILE_TIMBER)        # Wooden pier out over estuary
     _paint_hollow_box(wm, 10, 58, 18, 65, "#", ":", TILE_STONE)  # Lighthouse base
     wm.set_tile(14, 65, ".", TILE_STONE)                      # Lighthouse doorway
     # Toll-shed near pier east road (cache behind brittle salt pillar)
-    _paint_hollow_box(wm, 46, 59, 55, 65, "#", ".", TILE_STONE)
+    _paint_hollow_box(wm, 46, 59, 55, 65, "#", _stone_glyph, TILE_STONE)
     wm.set_tile(46, 62, "%", TILE_SALT)                       # Practice salt barrier
     # Main roads out of Tidemouth
     _paint_rect(wm, 20, 62, 45, 63, ":", TILE_ROAD)         # Pier to shed
@@ -262,18 +298,19 @@ def build_marren_world() -> WorldMap:
     _paint_rect(wm, 22, 34, 78, 37, ":", TILE_ROAD)
     _paint_rect(wm, 55, 37, 60, 54, ":", TILE_ROAD)
     # Orchard apple trees (avoiding paths)
-    for tx, ty in (
+    orchard_trees = (
         (14, 24), (20, 24), (28, 25), (41, 26), (62, 25), (69, 27),
         (13, 39), (26, 40), (42, 39), (48, 41), (66, 42), (70, 48),
         (29, 47), (45, 50), (14, 53), (64, 52),
-    ):
+    )
+    for tx, ty in orchard_trees:
         wm.set_tile(tx, ty, "Y", TILE_TREE)
     # Northwest Root-House holding Clapper I behind brittle salt crust
-    _paint_hollow_box(wm, 12, 25, 24, 33, "#", ".", TILE_STONE)
+    _paint_hollow_box(wm, 12, 25, 24, 33, "#", _stone_glyph, TILE_STONE)
     wm.set_tile(24, 29, "%", TILE_SALT)
     _paint_rect(wm, 25, 29, 32, 30, ":", TILE_ROAD)
     # Orchard Belfry Plinth (Bell I)
-    _paint_rect(wm, 54, 31, 61, 37, "=", TILE_STONE)
+    _paint_rect(wm, 54, 31, 61, 37, _stone_glyph, TILE_STONE)
     wm.set_tile(55, 32, "+", TILE_PILLAR)
     wm.set_tile(60, 32, "+", TILE_PILLAR)
 
@@ -489,14 +526,79 @@ def build_marren_world() -> WorldMap:
 
     # Handcrafted ASCII structural details overlaid artistically over static buildings
     wm.decor_lines = [
-        DecorativeFeature(11, 56, ["  /|\\  ", " /_*_\\ ", " |:::| "], min_grade=3, kind="lighthouse"),
-        DecorativeFeature(5, 72, ["   /|  ", " /===\\ ", " \\___/ "], min_grade=2, kind="skiff"),
-        DecorativeFeature(55, 31, [" /^B^\\ ", " |   | "], min_grade=3, kind="belfry"),
-        DecorativeFeature(124, 11, [" /^B^\\ ", " | | | "], min_grade=3, kind="belfry"),
-        DecorativeFeature(170, 38, [" /^B^\\ ", " |   | "], min_grade=3, kind="belfry"),
-        DecorativeFeature(217, 64, [" /_B_\\ ", " /   \\ "], min_grade=3, kind="belfry"),
-        DecorativeFeature(209, 6, ["  /__B__\\ ", " /|     |\\"], min_grade=4, kind="belfry"),
-        DecorativeFeature(198, 72, ["   /|   /|   /|   ", "__/_|__/_|__/_|___"], min_grade=1, kind="wreck"),
+        # Tidemouth Pier & Estuary Harbor
+        DecorativeFeature(
+            10,
+            53,
+            [
+                "   .|.   ",
+                "  /_*_\\  ",
+                " -|:::|- ",
+                "  |:.:|  ",
+                " /|:::|\\ ",
+                "/=|::.|=\\",
+            ],
+            min_grade=3,
+            kind="lighthouse",
+        ),
+        DecorativeFeature(11, 60, ["[=]  [o]", "   ..   ", "[#]  [=]"], min_grade=2, kind="interior"),
+        DecorativeFeature(5, 72, ["    /|   ", "   / |   ", " /===+\\  ", " \\_____/ "], min_grade=2, kind="skiff"),
+        DecorativeFeature(8, 61, ["  /|  ", " /==\\ ", " \\__/ "], min_grade=2, kind="skiff"),
+        DecorativeFeature(29, 73, ["   /|   ", " /====\\ ", " \\____/ "], min_grade=2, kind="skiff"),
+        DecorativeFeature(18, 65, ["[o][#]"], min_grade=2, kind="prop"),
+        DecorativeFeature(8, 71, ["|==|==|==|==|==|==|"], min_grade=2, kind="wharf"),
+        DecorativeFeature(45, 58, [" /========\\ ", "/==========\\"], min_grade=2, kind="roof"),
+        DecorativeFeature(47, 60, ["[=]  [#]"], min_grade=2, kind="interior"),
+        DecorativeFeature(28, 60, [" _|_ ", "|(I)|"], min_grade=2, kind="prop"),
+        DecorativeFeature(64, 71, ["\\|/  \\|/"], min_grade=1, kind="reeds"),
+        # Sunken Orchard Reeds, Ruined Mill, Root-House & Belfry
+        *[
+            DecorativeFeature(tx - 2, ty - 1, [" .-. ", "( % )", "  Y  "], min_grade=2, kind="tree")
+            for tx, ty in orchard_trees
+            if ty < 52
+        ],
+        DecorativeFeature(13, 45, ["\\|/ i \\|/", " ~ . ~ "], min_grade=1, kind="reeds"),
+        DecorativeFeature(46, 26, ["i \\|/  i"], min_grade=1, kind="reeds"),
+        DecorativeFeature(13, 24, ["/===+===\\"], min_grade=2, kind="roof"),
+        DecorativeFeature(13, 27, ["[o] [=]"], min_grade=2, kind="interior"),
+        DecorativeFeature(54, 29, ["  /^\\  ", " |(_)| ", "/==B==\\", "|     |"], min_grade=3, kind="belfry"),
+        # Bramwell Causeway Arches, Toll-Gate & South Beacon Cairn
+        DecorativeFeature(84, 59, ["| /==\\ |", "| |  | |"], min_grade=2, kind="arch"),
+        DecorativeFeature(98, 59, ["| /==\\ |", "| |  | |"], min_grade=2, kind="arch"),
+        DecorativeFeature(120, 59, ["| /==\\ |", "| |  | |"], min_grade=2, kind="arch"),
+        DecorativeFeature(134, 59, ["| /==\\ |", "| |  | |"], min_grade=2, kind="arch"),
+        DecorativeFeature(108, 51, ["/#===#\\", "|v| |v|"], min_grade=2, kind="gatehouse"),
+        DecorativeFeature(108, 59, ["|=====|", "\\#===#/"], min_grade=2, kind="gatehouse"),
+        DecorativeFeature(120, 72, ["  /|\\  ", " / * \\ ", "[=====]"], min_grade=3, kind="cairn"),
+        # St. Jude's Flooded Nave Cathedral & Tenor Spire
+        DecorativeFeature(80, 5, ["  /^\\     ( * )     /^\\  ", " /===\\   /|===|\\   /===\\ "], min_grade=2, kind="nave"),
+        DecorativeFeature(109, 14, ["~~~===~~~", "  |   |  "], min_grade=1, kind="wreck"),
+        DecorativeFeature(109, 31, ["~~~===~~~", " /     \\ "], min_grade=1, kind="wreck"),
+        DecorativeFeature(89, 27, ["i * i"], min_grade=3, kind="altar"),
+        DecorativeFeature(124, 9, ["  /|\\  ", " /^B^\\ ", " |(|)| ", "/=====\\"], min_grade=3, kind="belfry"),
+        DecorativeFeature(120, 12, ["[+] [=]", "       ", "[+] [=]"], min_grade=2, kind="nave"),
+        # Kiln-Town of Redwick Coke Ovens, Marrow Forge & Spire
+        DecorativeFeature(154, 40, [" .~.~. ", " /###\\ ", "| (*) |"], min_grade=2, kind="kiln"),
+        DecorativeFeature(185, 40, [" .~.~. ", " /###\\ ", "| (*) |"], min_grade=2, kind="kiln"),
+        DecorativeFeature(191, 47, [" .~.~. ", " /###\\ ", "| (*) |"], min_grade=2, kind="kiln"),
+        DecorativeFeature(157, 45, [" /======\\ ", "/========\\"], min_grade=2, kind="roof"),
+        DecorativeFeature(159, 48, ["[**] [#]"], min_grade=3, kind="forge"),
+        DecorativeFeature(170, 37, ["  /^\\  ", " /(|)\\ ", " |===| "], min_grade=3, kind="belfry"),
+        DecorativeFeature(182, 56, ["[#] [o] [o]"], min_grade=2, kind="warehouse"),
+        DecorativeFeature(182, 63, ["[=] [=] [#]"], min_grade=2, kind="warehouse"),
+        # Low Sunder Flats, Whalebone Ribs, SS Cormorant & Breakwater Crane
+        DecorativeFeature(198, 69, ["   /|\\      /|\\   ", "  /_|_\\    /_|_\\  ", "__/___\\____/___\\__"], min_grade=2, kind="wreck"),
+        DecorativeFeature(195, 73, [" /==\\", "|    ", " \\==/"], min_grade=2, kind="wreck"),
+        DecorativeFeature(201, 82, ["  \\==\\__@"], min_grade=2, kind="wreck"),
+        DecorativeFeature(156, 73, ["( /   \\ )", "  \\___/  "], min_grade=2, kind="bones"),
+        DecorativeFeature(179, 80, [" \\ | / ", "  \\|/  "], min_grade=2, kind="bones"),
+        DecorativeFeature(215, 61, ["  /|==+==>", " /_|_B_\\  ", "/       \\ "], min_grade=3, kind="crane"),
+        # High Foundry Gantries, Smokestacks & Master Dam Bastion
+        DecorativeFeature(154, 4, ["  |##|    |##|  ", "  |##|    |##|  "], min_grade=2, kind="foundry"),
+        DecorativeFeature(164, 11, ["|=/==\\=|"], min_grade=2, kind="gantry"),
+        DecorativeFeature(196, 25, ["|=/==\\=|"], min_grade=2, kind="gantry"),
+        DecorativeFeature(186, 15, ["(___)"], min_grade=2, kind="vat"),
+        DecorativeFeature(208, 5, ["  /__B__\\  ", " /| (|) |\\ ", "|==|===|==|"], min_grade=4, kind="belfry"),
     ]
 
     return wm

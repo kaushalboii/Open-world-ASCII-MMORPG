@@ -44,6 +44,7 @@ const MOVE_CODES = new Set(['ArrowUp', 'KeyW', 'ArrowDown', 'KeyS', 'ArrowLeft',
 function bootstrap() {
   const canvas = document.getElementById('crt');
   const statusTag = document.getElementById('crt-status');
+  const phosphorBtn = document.getElementById('btn-phosphor');
   const crtBtn = document.getElementById('btn-crt');
   const audioBtn = document.getElementById('btn-audio');
   if (!canvas) return;
@@ -56,12 +57,22 @@ function bootstrap() {
   const heldMoves = new Set();
 
   const updateMetaTag = () => {
+    const theme = renderer.getTheme();
+    if (phosphorBtn) {
+      const shortName = theme.id === 'amber' ? 'AMBER' : theme.id === 'verdigris' ? 'GREEN' : 'IVORY';
+      phosphorBtn.textContent = `[P] PHOSPHOR: ${shortName}`;
+    }
     if (crtBtn) crtBtn.textContent = renderer.crtEnabled ? '[V] CRT GLOW: ON' : '[V] CRT GLOW: OFF';
     if (audioBtn) audioBtn.textContent = audio.muted ? '[`] SOUND: MUTED' : '[`] SOUND: ON';
     if (statusTag) {
       const n = game.bellsRungCount();
-      statusTag.textContent = `P3 AMBER 585nm  |  BELLS ${n}/5`;
+      statusTag.textContent = `${theme.label}  |  BELLS ${n}/5`;
       audio.setMistCalmness(n);
+    }
+    if (typeof document !== 'undefined' && document.documentElement?.style) {
+      document.documentElement.style.setProperty('--phosphor-mist', theme.grades[1]);
+      document.documentElement.style.setProperty('--phosphor-dim', theme.grades[2]);
+      document.documentElement.style.setProperty('--phosphor-lit', theme.grades[3]);
     }
   };
 
@@ -69,6 +80,11 @@ function bootstrap() {
 
   window.addEventListener('keydown', (ev) => {
     audio.unlock();
+    if (ev.code === 'KeyP') {
+      renderer.cyclePhosphor();
+      updateMetaTag();
+      return;
+    }
     if (ev.code === 'KeyV') {
       renderer.crtEnabled = !renderer.crtEnabled;
       updateMetaTag();
@@ -148,6 +164,13 @@ function bootstrap() {
     updateMetaTag();
   });
 
+  if (phosphorBtn) {
+    phosphorBtn.addEventListener('click', () => {
+      audio.unlock();
+      renderer.cyclePhosphor();
+      updateMetaTag();
+    });
+  }
   if (crtBtn) {
     crtBtn.addEventListener('click', () => {
       audio.unlock();

@@ -201,6 +201,7 @@ class BellglassGame:
         self.enemies: List[EnemyRuntime] = []
         self.waves: List[ResonanceWave] = []
         self.sparks: List[SparkParticle] = []
+        self.ambient_motes: List[SparkParticle] = []
         self.slashes: List[SlashCell] = []
         self.floaters: List[FloatingText] = []
         self.weather: List[WeatherDrop] = []
@@ -208,6 +209,7 @@ class BellglassGame:
         self.shoal_lit_timer: float = 0.0
         self.foundry_wave_timer: float = 0.0
         self.shockwaves: List[Dict[str, Any]] = []
+        self.stats: Dict[str, int] = {"slain": 0, "parries": 0, "steps": 0}
         self.flags: Dict[str, Any] = {}
         self.log: List[str] = []
         self.active_dialogue: Optional[DialogueNode] = None
@@ -233,7 +235,7 @@ class BellglassGame:
 
     def _init_weather(self) -> None:
         self.weather.clear()
-        for _ in range(52):
+        for _ in range(72):
             self.weather.append(
                 WeatherDrop(
                     x=self.rng.uniform(0, GRID_COLS),
@@ -252,11 +254,13 @@ class BellglassGame:
         self.enemies = [EnemyRuntime(tpl=t, x=t.x, y=t.y, hp=t.max_hp) for t in self.world.enemies]
         self.waves.clear()
         self.sparks.clear()
+        self.ambient_motes.clear()
         self.slashes.clear()
         self.floaters.clear()
         self.shockwaves.clear()
         self.visited.clear()
         self.shoal_lit_timer = 0.0
+        self.stats = {"slain": 0, "parries": 0, "steps": 0}
         self.flags = {
             "pulley_pulled": False,
             "sluice_open": False,
@@ -631,6 +635,12 @@ class BellglassGame:
         self.player.x = nx
         self.player.y = ny
         self.player.move_cd = 0.095
+        self.stats["steps"] += 1
+        landed_kind = self.world.kinds[ny][nx]
+        if landed_kind == TILE_SHOAL:
+            self.sparks.append(SparkParticle(float(nx), float(ny), 0.0, 0.0, "~", GRADE_LIT, 0.28, 0.28))
+        elif landed_kind == TILE_MUD and self.stats["steps"] % 2 == 0:
+            self.sparks.append(SparkParticle(float(nx), float(ny), -self.player.fx * 0.8, -0.3, ",", GRADE_MIST, 0.22, 0.22))
         self.emit_sfx("step")
         self._update_visited()
         self._collect_nearby_pickups()
@@ -736,8 +746,10 @@ class BellglassGame:
 
     def _handle_enemy_defeat(self, e: EnemyRuntime) -> None:
         e.alive = False
+        self.stats["slain"] += 1
         self.player.brass += e.tpl.brass_drop
         self._spawn_sparks(e.x, e.y, 12, "+", GRADE_BRIGHT)
+        self.floaters.append(FloatingText(e.x, e.y - 1, f"+{e.tpl.brass_drop}B", 0.75))
         self.add_log(f"{e.tpl.name} collapses into bronze scree (+{e.tpl.brass_drop} Brass).")
         if e.tpl.is_boss:
             self.flags["vane_defeated"] = True
@@ -967,8 +979,66 @@ class BellglassGame:
                 self._damage_player(13, "Boss shockwave sweeps your footing!")
                 self.shockwaves.remove(sw)
 
+        self._update_ambient_motes(dt)
         self._update_enemies(dt)
         self._update_camera(dt)
+
+    def _update_ambient_motes(self, dt: float) -> None:
+        for m in list(self.ambient_motes):
+            m.x += m.vx * dt
+            m.y += m.vy * dt
+            m.ttl -= dt
+            if m.ttl <= 0:
+                self.ambient_motes.remove(m)
+        if len(self.ambient_motes) < 28 and self.rng.random() < 0.45:
+            px, py = self.player.x, self.player.y
+            if self.rng.random() < 0.42:
+                sources = (
+                    (24, 66, "'", GRADE_LIT),
+                    (40, 46, "'", GRADE_LIT),
+                    (88, 28, "'", GRADE_LIT),
+                    (160, 49, "*", GRADE_BRIGHT),
+                    (157, 40, "~", GRADE_MIST),
+                    (188, 40, "~", GRADE_MIST),
+                    (194, 47, "~", GRADE_MIST),
+                    (168, 52, "'", GRADE_LIT),
+                    (168, 22, "'", GRADE_LIT),
+                    (170, 13, "*", GRADE_LIT),
+                    (208, 27, "*", GRADE_LIT),
+                )
+                near = [s for s in sources if abs(s[0] - px) < 55 and abs(s[1] - py) < 25]
+                if near:
+                    sx, sy, g, gr = near[self.rng.randrange(len(near))]
+                    self.ambient_motes.append(
+                        SparkParticle(
+                            x=sx + self.rng.uniform(-0.8, 0.8),
+                            y=sy - 0.5,
+                            vx=self.rng.uniform(-0.4, 0.5),
+                            vy=-self.rng.uniform(1.1, 2.3),
+                            glyph=g,
+                            grade=gr,
+                            ttl=self.rng.uniform(0.9, 1.8),
+                            max_ttl=1.8,
+                        )
+                    )
+                    return
+            wx = px + self.rng.uniform(-34.0, 34.0)
+            wy = py + self.rng.uniform(-14.0, 14.0)
+            ix, iy = int(round(wx)), int(round(wy))
+            if self.world.in_bounds(ix, iy):
+                is_water = self.world.kinds[iy][ix] == TILE_WATER
+                self.ambient_motes.append(
+                    SparkParticle(
+                        x=wx,
+                        y=wy,
+                        vx=self.rng.uniform(-1.6, 1.6),
+                        vy=self.rng.uniform(-0.6, 0.5),
+                        glyph="v" if is_water else ".",
+                        grade=GRADE_DIM if is_water else GRADE_LIT,
+                        ttl=self.rng.uniform(1.2, 2.6),
+                        max_ttl=2.6,
+                    )
+                )
 
     def _update_weather(self, dt: float) -> None:
         reg = self.world.region_at(self.player.x, self.player.y)
@@ -1087,6 +1157,7 @@ class BellglassGame:
             if self.player.parry_timer > 0.0:
                 e.state = "staggered"
                 e.state_timer = 2.1
+                self.stats["parries"] += 1
                 self.player.parry_timer = 0.0
                 self.player.stamina = min(self.player.max_stamina, self.player.stamina + 25.0)
                 self.hit_stop = 0.06
@@ -1187,72 +1258,186 @@ class BellglassGame:
             if 0 <= c < GRID_COLS:
                 buf[row][c] = (ch if 32 <= ord(ch) <= 126 else ".", grade)
 
+    def _draw_frame(
+        self,
+        buf: List[List[Tuple[str, int]]],
+        x: int,
+        y: int,
+        w: int,
+        h: int,
+        title: str = "",
+        border_grade: int = GRADE_DIM,
+        title_grade: int = GRADE_BRIGHT,
+    ) -> None:
+        x1 = x + w - 1
+        y1 = y + h - 1
+        for cx in range(x + 1, x1):
+            self._put_str(buf, cx, y, "=", border_grade)
+            self._put_str(buf, cx, y1, "=", border_grade)
+        for cy in range(y + 1, y1):
+            self._put_str(buf, x, cy, "|", border_grade)
+            self._put_str(buf, x1, cy, "|", border_grade)
+        self._put_str(buf, x, y, "+", title_grade)
+        self._put_str(buf, x1, y, "+", title_grade)
+        self._put_str(buf, x, y1, "+", title_grade)
+        self._put_str(buf, x1, y1, "+", title_grade)
+        if title:
+            tag = f"[ {title} ]"
+            tx = x + max(2, (w - len(tag)) // 2)
+            self._put_str(buf, tx, y, tag[: max(0, w - 4)], title_grade)
+
+    def _nearby_prompt(self) -> str:
+        px, py = self.player.x, self.player.y
+        for npc in self.world.npcs:
+            if npc.id == "pip" and self.flags.get("pip_rescued"):
+                continue
+            if abs(npc.x - px) + abs(npc.y - py) <= 2:
+                return f"[E] Speak: {npc.name}"
+        for b in self.world.belfries:
+            if abs(b.x - px) + abs(b.y - py) <= 2:
+                if b.rung:
+                    return f"{b.name} [RINGING]"
+                return f"[E] Toll {b.name}" if b.clapper_id in self.player.clappers else f"{b.name} (needs clapper)"
+        for inter in self.world.interactables:
+            if abs(inter.x - px) + abs(inter.y - py) <= 2:
+                verb = "Inspect" if inter.activated else "Use"
+                return f"[E] {verb} {inter.name}"
+        for br in self.world.braziers:
+            if abs(br.x - px) + abs(br.y - py) <= 2:
+                return f"[E] Rest at {br.name} (Heal + Refill Oil)"
+        for dy in range(-4, 5):
+            for dx in range(-4, 5):
+                if dx * dx + dy * dy <= 20:
+                    tx, ty = px + dx, py + dy
+                    if self.world.in_bounds(tx, ty) and self.world.kinds[ty][tx] == TILE_SALT:
+                        return "Saline Seam (%) Nearby : Strike [Space] Tuning Fork"
+        return ""
+
     def _render_title(self, buf: List[List[Tuple[str, int]]]) -> None:
         t = self.clock
-        # Rain + subtle animated harbor waves at bottom of canvas
+        # 1. Drifting twilight cloud wisps & wind-driven estuary mist backdrop
+        for r in range(18):
+            for c in range(GRID_COLS):
+                mv = math.sin(c * 0.14 - t * 0.45 + r * 0.65) + math.cos(r * 0.42 + c * 0.05 + t * 0.2)
+                if r < 4 and mv > 1.1:
+                    buf[r][c] = ("~", GRADE_GHOST)
+                elif 9 <= r < 17 and mv > 0.75:
+                    buf[r][c] = (":" if c % 3 == 0 else ".", GRADE_GHOST)
         for drop in self.weather:
             ix, iy = int(drop.x), int(drop.y)
-            if 0 <= iy < GRID_ROWS and 0 <= ix < GRID_COLS:
+            if 0 <= iy < 26 and 0 <= ix < GRID_COLS:
                 buf[iy][ix] = ("/", GRADE_GHOST)
 
-        # Towering Lighthouse + harbor sill on the right side (cols 72..98)
-        beam_step = int(t * 2.2) % 4
-        beam = ["--------->", " . - . - >", "   * * *  ", "- - - - - "][beam_step]
+        # 2. Distant Marren Valley Parish Skyline (Orchard ridge, St. Jude spires, Redwick kilns)
+        ridge = "^^^/\\^^^..Y..Y..^^^/==\\^^^^   /|\\  (*)  /|\\    /###\\ |#| |##|  /==\\==\\   "
+        self._put_str(buf, 0, 14, ridge, GRADE_MIST)
+        self._put_str(buf, 0, 15, "#" * 74, GRADE_GHOST)
+        kiln_puff = int(t * 2.5) % 3
+        self._put_str(buf, 54, 12 + (1 if kiln_puff == 0 else 0), "~ .", GRADE_MIST)
+        self._put_str(buf, 58, 11 + (1 if kiln_puff == 1 else 0), ". ~", GRADE_MIST)
+
+        # 3. Towering Animated Tidemouth Lighthouse & Volumetric Rotating Beam (cols 68..103)
+        beam_step = int(t * 1.9) % 4
+        beam_rays = [
+            ["       ..::***", "     ...:::==>", "       ..::---"],
+            ["    ...:::====", "  ..:::*****=>", "    ...:::----"],
+            ["         .::**", "         ..:::", "          .::-"],
+            ["   ...::* * * ", "  ..::=======>", "   ...::-- - -"],
+        ][beam_step]
+        for idx, ray in enumerate(beam_rays):
+            self._put_str(buf, 86, 4 + idx, ray, GRADE_LIT if beam_step % 2 == 1 else GRADE_DIM)
+        if beam_step in (0, 3):
+            self._put_str(buf, 65, 5, ". . :::***==", GRADE_LIT)
+            self._put_str(buf, 62, 6, "..  ..:::====*", GRADE_DIM)
         lh = [
-            "      /|\\      ",
-            "     /_*_\\     ",
-            "     |:::|     ",
-            "     |::.|     ",
-            "    /|:::|\\    ",
-            "   / |:::| \\   ",
-            "  ===|:::|===  ",
+            "     .|.     ",
+            "    /_*_\\    ",
+            "   |=[*]=|   ",
+            "   /|:::|\\   ",
+            "   ||::.||   ",
+            "  /|:::::|\\  ",
+            "  ||::.::||  ",
+            " /#|:::::|#\\ ",
+            " |#|::.::|#| ",
+            "/==|_____|==\\",
         ]
         for idx, line in enumerate(lh):
-            self._put_str(buf, 74, 9 + idx, line, GRADE_LIT if idx <= 1 else GRADE_DIM)
-        self._put_str(buf, 84, 10, beam, GRADE_BRIGHT if beam_step == 2 else GRADE_MIST)
+            g = (GRADE_BRIGHT if beam_step % 2 == 0 else GRADE_LIT) if idx <= 2 else GRADE_DIM
+            self._put_str(buf, 74, 4 + idx, line, g)
+        self._put_str(buf, 68, 14, "   /^\\___/^\\____/^^^\\___/^^^^\\__ ", GRADE_DIM)
+        self._put_str(buf, 68, 15, "  /#############################\\", GRADE_MIST)
+        self._put_str(buf, 66, 16, " /=================================\\", GRADE_MIST)
+        self._put_str(buf, 66, 17, "~~~~~~~~~~^~~~^~~~~^~~~~~~~^~~~~~~~~", GRADE_MIST)
 
-        # Horizon sea wave rows
-        for r in range(18, 25):
-            row_str = []
-            for c in range(GRID_COLS):
-                wave = math.sin(c * 0.25 + t * (1.2 + (r - 18) * 0.15) + r)
-                row_str.append("~" if wave > 0.2 else ("-" if wave > -0.35 else " "))
-            self._put_str(buf, 0, r, "".join(row_str), GRADE_MIST if r < 21 else GRADE_GHOST)
-
-        # Skiff silhouette floating on horizon wave
-        bob = 1 if math.sin(t * 2.1) > 0.2 else 0
-        self._put_str(buf, 58, 17 + bob, "   /|   ", GRADE_LIT)
-        self._put_str(buf, 56, 18 + bob, " /====\\ ", GRADE_LIT)
-        self._put_str(buf, 55, 19 + bob, " \\______/", GRADE_DIM)
-
-        # Monolithic Woodcut Masthead on left
+        # 4. Engraved Double-Border Masthead Plaque + Animated Parish Bell Crest (cols 3..66, rows 2..11)
+        self._draw_frame(buf, 3, 2, 64, 10, "P3 AMBER EDITION", GRADE_DIM, GRADE_LIT)
+        for r in range(3, 11):
+            self._put_str(buf, 4, r, " " * 62, GRADE_GHOST)
         masthead = [
-            " ____  _____ _     _     ____ _        _    ____ ____  ",
-            "| __ )| ____| |   | |   / ___| |      / \\  / ___/ ___| ",
-            "|  _ \\|  _| | |   | |  | |  _| |     / _ \\ \\___ \\___ \\ ",
-            "| |_) | |___| |___| |__| |_| | |___ / ___ \\ ___) |__) |",
-            "|____/|_____|_____|_____\\____|_____/_/   \\_\\____/____/ ",
+            " ____  _____ _     _     ____ _        _    ____ ____ ",
+            "| __ )| ____| |   | |   / ___| |      / \\  / ___/ ___|",
+            "|  _ \\|  _| | |   | |  | |  _| |     / _ \\ \\___ \\___ \\",
+            "| |_) | |___| |___| |__| |_| | |___ / ___ \\ ___) |__)|",
+            "|____/|_____|_____|_____\\____|_____/_/   \\_\\____/____/",
         ]
         for idx, row_txt in enumerate(masthead):
-            self._put_str(buf, 6, 6 + idx, row_txt, GRADE_BRIGHT if idx < 2 else GRADE_LIT)
+            self._put_str(buf, 5, 3 + idx, row_txt, GRADE_BRIGHT if idx < 2 else GRADE_LIT)
 
-        self._put_str(buf, 7, 12, "T H E   D R O W N E D   P R O V I N C E", GRADE_DIM)
-        self._put_str(buf, 7, 13, "Five bells sunk beneath the estuary haze.", GRADE_MIST)
+        swing = int(round(math.sin(t * 2.2)))
+        clapper = "(o) " if swing < 0 else (" (o)" if swing > 0 else " (o)")
+        self._put_str(buf, 60, 4, " /#\\ ", GRADE_LIT)
+        self._put_str(buf, 60, 5, "|(*)|", GRADE_BRIGHT)
+        self._put_str(buf, 60, 6, "|___|", GRADE_LIT)
+        self._put_str(buf, 60, 7, clapper, GRADE_BRIGHT)
+        self._put_str(buf, 5, 9, "T H E   D R O W N E D   P R O V I N C E  --  MARREN VALLEY", GRADE_LIT)
+        self._put_str(buf, 5, 10, "Five sunken parish bells beneath salt mist and rising tide.", GRADE_DIM)
 
-        # Crisp Menu Options — zero ugly card borders
+        # 5. Rolling Multi-Depth Harbor Sea, Timber Jetty Wharf & Rigged Salvage Skiff (rows 18..25)
+        for r in range(18, 26):
+            for c in range(GRID_COLS):
+                w = math.sin(c * 0.24 + t * (1.35 + (r - 18) * 0.14) + r * 0.9)
+                ch = "^" if w > 0.45 else ("~" if w > 0.05 else ("-" if w > -0.45 else " "))
+                g = GRADE_MIST if r < 21 else GRADE_GHOST
+                if abs(c - 80) <= 3 and (c + r + int(t * 5)) % 2 == 0:
+                    ch = "*" if r < 22 else ":"
+                    g = GRADE_LIT
+                buf[r][c] = (ch, g)
+
+        self._put_str(buf, 0, 19, "=========================(*)  ", GRADE_LIT)
+        self._put_str(buf, 0, 20, " [o] [#]   |   |   |   |  |   ", GRADE_DIM)
+        self._put_str(buf, 0, 21, "  ~   ~    |   ~   |   ~  |   ", GRADE_MIST)
+
+        bob = 1 if math.sin(t * 2.1) > 0.2 else 0
+        self._put_str(buf, 43, 16 + bob, "    /|      /|     ", GRADE_LIT)
+        self._put_str(buf, 43, 17 + bob, "   /_|     /_|     ", GRADE_LIT)
+        self._put_str(buf, 42, 18 + bob, " * /===\\===/===\\  ", GRADE_BRIGHT)
+        self._put_str(buf, 42, 19 + bob, "  \\______________/ ", GRADE_LIT)
+        self._put_str(buf, 44, 20 + bob, "~~~ ~~~ ~~~ ~~~  ", GRADE_DIM)
+
+        # 6. Bottom Docked Expedition Launch Console (rows 27..34) + Survey Brief
+        self._draw_frame(buf, 4, 27, 48, 8, "EXPEDITION LAUNCH", GRADE_DIM, GRADE_LIT)
         prompt = "[Enter] Resume Journey from Embers" if self.has_existing_save else "[Enter] Step onto Tidemouth Pier"
-        self._put_str(buf, 8, 28, f"> {prompt}", GRADE_BRIGHT)
+        self._put_str(buf, 7, 28, f"> {prompt}", GRADE_BRIGHT)
         if self.has_existing_save:
-            self._put_str(buf, 10, 30, "[N] Start Fresh Crossing", GRADE_DIM)
-        self._put_str(buf, 10, 32, "[H] Tuning & Field Manual", GRADE_DIM)
-        self._put_str(buf, 10, 34, "[Q] Quit Console", GRADE_MIST)
-        self._put_str(buf, 6, 36, "P3 AMBER PHOSPHOR  |  OPEN-WORLD VALLEY OF MARREN  |  V1.0", GRADE_GHOST)
+            self._put_str(buf, 9, 30, "[N] Start Fresh Crossing", GRADE_LIT)
+        else:
+            self._put_str(buf, 9, 30, "Wake five bells to clear the valley fog.", GRADE_DIM)
+        self._put_str(buf, 9, 32, "[H] Tuning Fork & Field Manual", GRADE_LIT)
+        self._put_str(buf, 9, 33, "[Q] Quit Console", GRADE_MIST)
+
+        self._draw_frame(buf, 54, 27, 46, 8, "SURVEY BRIEF", GRADE_MIST, GRADE_DIM)
+        self._put_str(buf, 57, 28, "7 Flooded Parishes  *  5 Parish Bells", GRADE_LIT)
+        self._put_str(buf, 57, 30, "[WASD/Arrows] Walk   [J/Enter] Strike", GRADE_DIM)
+        self._put_str(buf, 57, 31, "[K/Shift] Parry      [L] Dodge  [F] Lamp", GRADE_DIM)
+        self._put_str(buf, 57, 32, "[Space] Tuning Fork  [E] Act    [Tab] Map", GRADE_DIM)
+        self._put_str(buf, 57, 33, "[H] Poultice   [Esc] Pause / Title", GRADE_MIST)
+
+        self._put_str(buf, 6, 36, "P3 AMBER PHOSPHOR  |  OPEN-WORLD VALLEY OF MARREN  |  V1.0", GRADE_DIM)
 
     def _render_help(self, buf: List[List[Tuple[str, int]]]) -> None:
-        self._put_str(buf, 4, 2, "BELLGLASS FIELD MANUAL  --  OREN WARD'S NOTES", GRADE_BRIGHT)
-        self._put_str(buf, 4, 3, "-" * 96, GRADE_MIST)
+        self._draw_frame(buf, 2, 1, GRID_COLS - 4, GRID_ROWS - 2, "BELLGLASS FIELD MANUAL  --  OREN WARD'S NOTES", GRADE_DIM, GRADE_BRIGHT)
         rows = [
-            ("MOVEMENT & LAMP", ""),
+            ("MOVEMENT & LANTERN", ""),
             ("  W A S D / Arrows", "Walk dirt dikes, docks, ruined aisles, and dry causeways."),
             ("  F", "Hood or Raise your Oil Lantern (hooded saves oil & halves aggro range)."),
             ("  L", "Quick Dodge-Step two tiles along facing direction (brief evasive invulnerability)."),
@@ -1271,19 +1456,19 @@ class BellglassGame:
         y = 5
         for key, desc in rows:
             if desc == "":
-                self._put_str(buf, 6, y, key, GRADE_LIT)
+                self._put_str(buf, 5, y, key, GRADE_LIT)
             else:
-                self._put_str(buf, 6, y, key.ljust(22), GRADE_BRIGHT)
-                self._put_str(buf, 29, y, desc, GRADE_DIM)
+                self._put_str(buf, 5, y, key.ljust(22), GRADE_BRIGHT)
+                self._put_str(buf, 28, y, desc, GRADE_DIM)
             y += 1
-        self._put_str(buf, 6, 35, "[Enter / Esc] Return", GRADE_LIT)
+        self._put_str(buf, 5, 34, "+" + "-" * 92 + "+", GRADE_MIST)
+        self._put_str(buf, 6, 35, "[Enter / Esc] Return", GRADE_BRIGHT)
 
     def _render_ledger(self, buf: List[List[Tuple[str, int]]]) -> None:
-        self._put_str(buf, 4, 2, "SURVEYOR'S PARCHMENT  &  PARISH CLAPPER LEDGER", GRADE_BRIGHT)
-        self._put_str(buf, 4, 3, "-" * 96, GRADE_MIST)
+        self._draw_frame(buf, 1, 1, GRID_COLS - 2, GRID_ROWS - 2, "SURVEYOR PARCHMENT  &  PARISH CLAPPER LEDGER", GRADE_DIM, GRADE_BRIGHT)
+        self._put_str(buf, 4, 3, "[ VALLEY OF MARREN - SURVEY CHART ]", GRADE_LIT)
+        self._draw_frame(buf, 3, 4, 62, 24, "", GRADE_MIST, GRADE_MIST)
 
-        # Left side: Compact scaled world map (60 cols x 22 rows -> exact 4x4 downsampling of 240x88)
-        self._put_str(buf, 4, 5, "[ VALLEY OF MARREN - SURVEY CHART ]", GRADE_LIT)
         map_w, map_h = 60, 22
         for my in range(map_h):
             wy = min(WORLD_H - 1, my * 4 + 1)
@@ -1293,49 +1478,70 @@ class BellglassGame:
                     k = self.world.kinds[wy][wx]
                     if k == TILE_WATER:
                         ch, g = "~", GRADE_GHOST
-                    elif k in (TILE_WALL, TILE_PILLAR):
+                    elif k in (TILE_WALL, TILE_PILLAR, TILE_TREE):
                         ch, g = "#", GRADE_DIM
                     elif k in (TILE_ROAD, TILE_BRIDGE, TILE_TIMBER, TILE_STONE):
-                        ch, g = "=", GRADE_DIM
+                        ch, g = "=", GRADE_LIT
                     else:
                         ch, g = ".", GRADE_MIST
                 else:
-                    h = ((mx * 73856093) ^ (my * 19349663)) & 31
-                    ch, g = ("." if h == 0 else " "), GRADE_GHOST
-                buf[6 + my][4 + mx] = (ch, g)
+                    h = ((mx * 73856093) ^ (my * 19349663)) & 15
+                    ch, g = ("." if h == 0 else ("," if h == 7 else " ")), GRADE_GHOST
+                buf[5 + my][4 + mx] = (ch, g)
 
-        # Place exact 1-cell Belfries and Player on Survey Chart
+        for lx, ly, tag in [
+            (6, 7, "ORCHARD"),
+            (21, 6, "ST.JUDE"),
+            (42, 6, "FOUNDRY"),
+            (6, 17, "PIER"),
+            (23, 14, "CAUSEWAY"),
+            (41, 13, "REDWICK"),
+            (45, 20, "FLATS"),
+        ]:
+            self._put_str(buf, 4 + lx, 5 + ly, tag, GRADE_DIM)
+
         for b in self.world.belfries:
             bx = max(0, min(map_w - 1, b.x // 4))
             by = max(0, min(map_h - 1, b.y // 4))
-            buf[6 + by][4 + bx] = ("B" if b.rung else "b", GRADE_BRIGHT if b.rung else GRADE_LIT)
+            buf[5 + by][4 + bx] = ("B" if b.rung else "b", GRADE_BRIGHT if b.rung else GRADE_LIT)
         pmx = max(0, min(map_w - 1, self.player.x // 4))
         pmy = max(0, min(map_h - 1, self.player.y // 4))
-        buf[6 + pmy][4 + pmx] = ("@", GRADE_BRIGHT)
+        buf[5 + pmy][4 + pmx] = ("@", GRADE_BRIGHT)
 
-        # Right side: Parish Bells + Clappers + Gear
         col = 67
-        self._put_str(buf, col, 5, "[ FIVE GREAT BELLS ]", GRADE_LIT)
+        self._put_str(buf, col, 3, "[ FIVE GREAT BELLS ]", GRADE_LIT)
         for idx, b in enumerate(self.world.belfries):
             have = b.clapper_id in self.player.clappers
-            status = "RINGING" if b.rung else ("CLAPPER HELD" if have else "SILENT")
+            icon = "(*)" if b.rung else ("(o)" if have else "(.)")
+            status = "RINGING" if b.rung else ("CLAPPER" if have else "SILENT")
             grade = GRADE_BRIGHT if b.rung else (GRADE_LIT if have else GRADE_MIST)
-            self._put_str(buf, col, 7 + idx * 2, f"{idx+1}. {b.name}", grade)
-            self._put_str(buf, col + 3, 8 + idx * 2, status, grade)
+            self._put_str(buf, col, 5 + idx * 2, f"{icon} {b.name}", grade)
+            self._put_str(buf, col + 4, 6 + idx * 2, status, grade)
 
-        self._put_str(buf, col, 18, "[ EQUIPMENT ]", GRADE_LIT)
-        self._put_str(buf, col, 20, f"Blade : {self.player.blade_name} ({self.player.damage} dmg)", GRADE_DIM)
-        self._put_str(buf, col, 21, f"Lamp  : {self.player.lamp_name}", GRADE_DIM)
-        self._put_str(buf, col, 22, f"Brass : {self.player.brass} coins   Poultices: {self.player.poultices}", GRADE_DIM)
-        ring = "Equipped (+15 HP)" if self.player.ringlet_equipped else "Not yet recovered"
-        self._put_str(buf, col, 23, f"Relic : Ringlet ({ring})", GRADE_MIST)
+        self._put_str(buf, col, 16, "[ EQUIPMENT & TALLY ]", GRADE_LIT)
+        self._put_str(buf, col, 18, f"Blade : {self.player.blade_name} ({self.player.damage})", GRADE_DIM)
+        self._put_str(buf, col, 19, f"Lamp  : {self.player.lamp_name}", GRADE_DIM)
+        self._put_str(buf, col, 20, f"Brass : {self.player.brass}   Poultices: {self.player.poultices}", GRADE_DIM)
+        ring = "Equipped (+15 HP)" if self.player.ringlet_equipped else "Hidden south of dike"
+        self._put_str(buf, col, 21, f"Relic : {ring}", GRADE_MIST)
+        self._put_str(buf, col, 23, f"Felled: {self.stats['slain']}   Parries: {self.stats['parries']}", GRADE_DIM)
+        self._put_str(buf, col, 24, f"Steps : {self.stats['steps']}", GRADE_MIST)
 
-        self._put_str(buf, 4, 30, "Legend: [@] You   [B] Bell Rung   [b] Unlit Belfry   [~] Estuary Water", GRADE_MIST)
-        self._put_str(buf, 4, 35, "[Tab / Esc / Enter] Close Parchment", GRADE_LIT)
+        self._put_str(buf, 5, 29, "   N   ", GRADE_LIT)
+        self._put_str(buf, 5, 30, " W-+-E ", GRADE_DIM)
+        self._put_str(buf, 5, 31, "   S   ", GRADE_LIT)
+        self._put_str(buf, 15, 29, "Legend: [@] You   [B] Bell Rung   [b] Silent Belfry", GRADE_DIM)
+        self._put_str(buf, 15, 30, "        [=] Cobble / Timber Bridge   [#] Ruin Masonry", GRADE_MIST)
+        self._put_str(buf, 15, 32, "[Tab / Esc / Enter] Close Parchment", GRADE_BRIGHT)
 
     def _render_victory(self, buf: List[List[Tuple[str, int]]]) -> None:
-        self._put_str(buf, 8, 5, "ALL FIVE PARISH BELLS ANSWER ACROSS MARREN VALLEY", GRADE_BRIGHT)
-        self._put_str(buf, 8, 6, "=" * 52, GRADE_DIM)
+        self._draw_frame(buf, 4, 3, GRID_COLS - 8, 30, "ESTUARY DAWN  --  FIVE BELLS AWAKENED", GRADE_DIM, GRADE_BRIGHT)
+        self._put_str(buf, 10, 6, "ALL FIVE PARISH BELLS ANSWER ACROSS MARREN VALLEY", GRADE_BRIGHT)
+        self._put_str(buf, 10, 7, "=" * 52, GRADE_DIM)
+        self._put_str(buf, 82, 5, "   /#\\   ", GRADE_LIT)
+        self._put_str(buf, 82, 6, "  |(*)|  ", GRADE_BRIGHT)
+        self._put_str(buf, 82, 7, " /_____\\ ", GRADE_LIT)
+        self._put_str(buf, 82, 8, "   (o)   ", GRADE_BRIGHT)
         lines = [
             "Bronze tremor clears seven winters of estuary haze.",
             "Out on Tidemouth Pier, Old Hester unfastens her river rope.",
@@ -1346,14 +1552,22 @@ class BellglassGame:
             "You walk back downriver with a quiet fork and half a jar of oil.",
         ]
         for idx, ln in enumerate(lines):
-            self._put_str(buf, 8, 9 + idx, ln, GRADE_LIT if idx < 5 else GRADE_BRIGHT)
-        self._put_str(buf, 8, 21, "[Enter] Keep Wandering Lit Marren   |   [N] Begin New Crossing   |   [Q] Title", GRADE_DIM)
+            self._put_str(buf, 10, 10 + idx, ln, GRADE_LIT if idx < 5 else GRADE_BRIGHT)
+        self._put_str(
+            buf,
+            10,
+            20,
+            f"Expedition Record -> Foes Felled: {self.stats['slain']}  |  Parries: {self.stats['parries']}  |  Brass: {self.player.brass}",
+            GRADE_LIT,
+        )
+        self._put_str(buf, 10, 26, "[Enter] Keep Wandering Lit Marren   |   [N] Begin New Crossing   |   [Q] Title", GRADE_BRIGHT)
 
     def _overlay_death(self, buf: List[List[Tuple[str, int]]]) -> None:
-        self._put_str(buf, 28, 13, "+--------------------------------------------+", GRADE_LIT)
-        self._put_str(buf, 28, 14, "|      YOUR LANTERN SPUTTERS INTO MUD        |", GRADE_BRIGHT)
-        self._put_str(buf, 28, 15, "|  [Enter / E] Wake at Nearest Ember Brazier |", GRADE_DIM)
-        self._put_str(buf, 28, 16, "+--------------------------------------------+", GRADE_LIT)
+        self._draw_frame(buf, 24, 12, 56, 7, "EXTINGUISHED", GRADE_LIT, GRADE_BRIGHT)
+        self._put_str(buf, 26, 13, " " * 52, GRADE_GHOST)
+        self._put_str(buf, 26, 14, "      YOUR LANTERN SPUTTERS INTO COLD MUD        ", GRADE_BRIGHT)
+        self._put_str(buf, 26, 15, " " * 52, GRADE_GHOST)
+        self._put_str(buf, 26, 16, "  [Enter / E] Wake at Nearest Brazier            ", GRADE_LIT)
 
     def _render_dialogue_choices(self, buf: List[List[Tuple[str, int]]]) -> None:
         if not self.active_choices:
@@ -1405,41 +1619,40 @@ class BellglassGame:
         cx0 = max(0, min(WORLD_W - GRID_COLS, int(round(self.cam_x)) + shake_x))
         cy0 = max(0, min(WORLD_H - VIEW_ROWS, int(round(self.cam_y)) + shake_y))
 
+        t = self.clock
         px, py = self.player.x, self.player.y
         lamp_r = self._lamp_radius()
         lamp_r2 = lamp_r * lamp_r
         cur_region = self.world.region_at(px, py)
         cleared_regions = {b.region for b in self.world.belfries if b.rung}
 
-        # Prebuild quick lookups for visible entities
         brazier_pts = [(br.x, br.y) for br in self.world.braziers]
         lit_belfries = [(b.x, b.y) for b in self.world.belfries if b.rung]
 
-        # Row 0: Clean Diegetic Horizon Header
+        # Row 0: Clean Segmented Instrument Header
         reg_title = next((r[1] for r in REGION_META if r[0] == cur_region), "MARREN VALLEY")
         haze_txt = "CLEAR" if cur_region in cleared_regions else ("HOODED" if self.player.lamp_hooded else "FOG DEEP")
         bells_str = "".join("[o]" if b.rung else "[ ]" for b in self.world.belfries)
-        hp_pips = int(round(8 * self.player.hp / max(1, self.player.max_hp)))
-        oil_pips = int(round(6 * self.player.oil / max(1.0, self.player.max_oil)))
-        hp_bar = "#" * hp_pips + "." * (8 - hp_pips)
-        oil_bar = "#" * oil_pips + "." * (6 - oil_pips)
+        hp_pips = int(round(6 * self.player.hp / max(1, self.player.max_hp)))
+        oil_pips = int(round(5 * self.player.oil / max(1.0, self.player.max_oil)))
+        hp_bar = "#" * hp_pips + "." * (6 - hp_pips)
+        oil_bar = "#" * oil_pips + "." * (5 - oil_pips)
         top_line = (
-            f"{reg_title} : {haze_txt:<8}   BELLS {bells_str}   "
-            f"HP [{hp_bar}] {self.player.hp:2d}/{self.player.max_hp:<2d}   "
-            f"OIL [{oil_bar}] {int(self.player.oil):3d}%   BRASS {self.player.brass:<3d}"
+            f"{reg_title} [{haze_txt}] | BELLS {bells_str} | "
+            f"HP[{hp_bar}] {self.player.hp:2d}/{self.player.max_hp:<2d} | "
+            f"OIL[{oil_bar}] {int(self.player.oil):3d}% | "
+            f"${self.player.brass}"
         )
-        # If actively dueling an enemy, show clean terse posture indicator far right if fits
-        tgt = next((e for e in self.enemies if e.alive and e.tpl.id == self.active_target_id), None)
-        if tgt and abs(tgt.x - px) + abs(tgt.y - py) <= 14:
-            posture = tgt.state.upper()
-            tag = f"  [{tgt.tpl.name} {tgt.hp}/{tgt.tpl.max_hp} {posture}]"
-            if len(top_line) + len(tag) <= GRID_COLS:
-                top_line += tag
         self._put_str(buf, 0, 0, fit_line(top_line, GRID_COLS), GRADE_LIT)
+
+        tgt = next((e for e in self.enemies if e.alive and e.tpl.id == self.active_target_id), None)
 
         # World tile pass
         wave_rings = self.waves
         shoal_open = self.shoal_lit_timer > 0.0
+        beam_ang = (t * 0.65) % math.tau
+        arch_kinds = (TILE_WALL, TILE_PILLAR, TILE_TREE, TILE_SALT, TILE_GATE)
+        path_kinds = (TILE_BRIDGE, TILE_TIMBER, TILE_ROAD, TILE_STONE)
         for vr in range(VIEW_ROWS):
             wy = cy0 + vr
             row_idx = VIEW_TOP + vr
@@ -1450,23 +1663,49 @@ class BellglassGame:
                 reg = self.world.region_ids[wy][wx]
                 dist2 = (wx - px) * (wx - px) + (wy - py) * (wy - py)
 
-                # Animate water shimmer
+                is_shore = False
+                if kind == TILE_WATER and 0 < wx < WORLD_W - 1 and 0 < wy < WORLD_H - 1:
+                    k_n = self.world.kinds[wy - 1][wx]
+                    k_s = self.world.kinds[wy + 1][wx]
+                    k_w = self.world.kinds[wy][wx - 1]
+                    k_e = self.world.kinds[wy][wx + 1]
+                    if (
+                        (k_n not in (TILE_WATER, TILE_SHOAL))
+                        or (k_s not in (TILE_WATER, TILE_SHOAL))
+                        or (k_w not in (TILE_WATER, TILE_SHOAL))
+                        or (k_e not in (TILE_WATER, TILE_SHOAL))
+                    ):
+                        is_shore = True
+
+                # Animate water shimmer & shorelines
                 if kind in (TILE_WATER, TILE_SHOAL):
                     if kind == TILE_SHOAL and shoal_open:
                         ch = "o"
+                    elif is_shore:
+                        ch = "~" if (wx + wy + int(t * 3)) % 2 == 0 else "_"
                     else:
-                        phase = int(self.clock * 2.5 + wx * 0.4 + wy * 0.7) % 7
+                        phase = int(t * 2.5 + wx * 0.4 + wy * 0.7) % 7
                         ch = "~" if phase < 4 else ("-" if phase < 6 else " ")
                 elif kind == TILE_SLAG:
-                    ch = "*" if int(self.clock * 5 + wx + wy) % 3 == 0 else "="
+                    ch = "*" if int(t * 5 + wx + wy) % 3 == 0 else "="
 
                 # Lighting & Shadow evaluation
                 lit_score = 0.0
                 if dist2 <= lamp_r2 and (dist2 <= 4 or self._has_los(px, py, wx, wy)):
-                    # Soft flicker + facing beam boost
                     dot = (wx - px) * self.player.fx + (wy - py) * self.player.fy
                     beam_boost = 1.2 if (not self.player.lamp_hooded and dot > 0) else 0.0
                     lit_score = max(lit_score, 1.0 - (math.sqrt(dist2) / (lamp_r + beam_boost + 0.5)) * 0.75)
+
+                # Tidemouth Lighthouse volumetric rotating beam
+                lh_dx = wx - 14
+                lh_dy = wy - 56
+                lh_dist2 = lh_dx * lh_dx + lh_dy * lh_dy
+                if lh_dist2 <= 784:
+                    d_ang = abs(math.atan2(lh_dy, lh_dx) - beam_ang)
+                    if d_ang > math.pi:
+                        d_ang = math.tau - d_ang
+                    if d_ang <= 0.28:
+                        lit_score = max(lit_score, 0.72 - math.sqrt(lh_dist2) * 0.015)
 
                 # Braziers & Lit Belfries radiate warm beacons
                 for bx, by in brazier_pts:
@@ -1491,40 +1730,45 @@ class BellglassGame:
 
                 in_cleared = reg in cleared_regions
                 in_memory = (wx, wy) in self.visited
+                is_arch = kind in arch_kinds
+                is_path = kind in path_kinds
 
                 if lit_score <= 0.05:
                     if in_cleared:
-                        grade = GRADE_MIST
+                        grade = GRADE_GHOST if (kind == TILE_WATER and not is_shore) else GRADE_MIST
                     elif in_memory:
-                        # Subtle dim fog/memory ghost
-                        if kind in (TILE_WALL, TILE_PILLAR, TILE_TREE, TILE_SALT, TILE_GATE):
-                            grade = GRADE_GHOST
-                        else:
-                            ch = "." if kind != TILE_WATER else "~"
-                            grade = GRADE_GHOST
+                        grade = GRADE_MIST if (is_arch or is_path or is_shore) else GRADE_GHOST
+                    elif (is_shore and dist2 <= 324) or (is_arch and dist2 <= 256):
+                        grade = GRADE_GHOST
                     else:
-                        # Organic drift fog in unseen tiles (zero periodic modulo stripes)
-                        drift_x = wx + int(self.clock * 1.2)
-                        h = ((drift_x * 73856093) ^ (wy * 19349663)) & 63
-                        ch = "," if h == 0 else ("." if h == 21 else " ")
+                        mv = math.sin(wx * 0.11 - t * 0.7 + wy * 0.35) + math.cos(wx * 0.23 + wy * 0.14 - t * 0.45)
+                        h = ((wx * 73856093) ^ (wy * 19349663) ^ int(t * 2)) & 7
+                        if mv > 1.15 and h < 3:
+                            ch = "~"
+                        elif mv > 0.85 and h < 2:
+                            ch = "." if ((wx + wy) & 1) else "-"
+                        elif mv > 0.65 and h == 0:
+                            ch = ","
+                        else:
+                            ch = " "
                         grade = GRADE_GHOST
                 elif wave_hit:
                     grade = GRADE_BRIGHT
                 elif lit_score > 0.65:
                     if kind in (TILE_SALT, TILE_SLAG):
                         grade = GRADE_BRIGHT
-                    elif kind in (TILE_WALL, TILE_TIMBER, TILE_BRIDGE, TILE_ROAD, TILE_STONE):
+                    elif is_path or kind in (TILE_WALL, TILE_PILLAR, TILE_GATE):
                         grade = GRADE_LIT
                     else:
-                        grade = GRADE_DIM
+                        grade = GRADE_LIT if is_shore else GRADE_DIM
                 elif lit_score > 0.30:
-                    grade = GRADE_DIM if kind != TILE_WATER else GRADE_MIST
+                    grade = GRADE_DIM if (kind != TILE_WATER or is_shore) else GRADE_MIST
                 else:
                     grade = GRADE_MIST
 
                 if kind == TILE_SHOAL and shoal_open and (lit_score > 0.1 or wave_hit):
                     ch = "o"
-                    grade = GRADE_BRIGHT if (int(self.clock * 4 + wx) % 2 == 0) else GRADE_LIT
+                    grade = GRADE_BRIGHT if (int(t * 4 + wx) % 2 == 0) else GRADE_LIT
 
                 buf[row_idx][vc] = (ch, grade)
 
@@ -1536,12 +1780,14 @@ class BellglassGame:
                 wy = cy0 + (iy - VIEW_TOP)
                 if drop.kind == "ember":
                     buf[iy][ix] = ("'", GRADE_LIT)
-                elif abs(wx - px) + abs(wy - py) <= lamp_r + 2:
-                    if buf[iy][ix][0] in (" ", ".", ","):
+                elif abs(wx - px) + abs(wy - py) <= lamp_r + 4:
+                    if buf[iy][ix][0] in (" ", ".", ",", "~"):
                         buf[iy][ix] = ("/", GRADE_MIST)
 
         # Structural multi-line ASCII landmarks (lighthouse apex, belfry roofs, cormorant ribs)
         for feat in self.world.decor_lines:
+            feat_dist2 = (feat.x + 3 - px) ** 2 + (feat.y + 2 - py) ** 2
+            feat_clear = self.world.region_at(max(0, feat.x), max(0, feat.y)) in cleared_regions
             for dr, line in enumerate(feat.lines):
                 wy = feat.y + dr
                 if not (cy0 <= wy < cy0 + VIEW_ROWS):
@@ -1553,9 +1799,17 @@ class BellglassGame:
                     wx = feat.x + dc
                     if cx0 <= wx < cx0 + GRID_COLS:
                         d2 = (wx - px) ** 2 + (wy - py) ** 2
-                        if (wx, wy) in self.visited or self.world.region_at(wx, wy) in cleared_regions or d2 <= 100:
-                            g = GRADE_LIT if d2 <= lamp_r2 else GRADE_DIM
+                        if feat_clear or feat_dist2 <= 324 or (wx, wy) in self.visited or d2 <= 289:
+                            g = GRADE_LIT if d2 <= lamp_r2 else (GRADE_DIM if d2 <= 196 else GRADE_MIST)
                             buf[vr][wx - cx0] = (ch, g)
+
+        # Ambient Motes (kiln smoke, forge anvil sparks, estuary gulls / fireflies)
+        for m in self.ambient_motes:
+            ix, iy = int(round(m.x)), int(round(m.y))
+            if cx0 <= ix < cx0 + GRID_COLS and cy0 <= iy < cy0 + VIEW_ROWS:
+                d2 = (ix - px) ** 2 + (iy - py) ** 2
+                if d2 <= lamp_r2 + 64 or m.glyph in ("*", "'"):
+                    buf[VIEW_TOP + (iy - cy0)][ix - cx0] = (m.glyph, m.grade if m.ttl > 0.45 else GRADE_MIST)
 
         # Dynamic Resonance Wave glyphs
         for w in self.waves:
@@ -1571,7 +1825,7 @@ class BellglassGame:
         # Braziers, Interactables, Belfries, Pickups, NPCs
         for br in self.world.braziers:
             if cx0 <= br.x < cx0 + GRID_COLS and cy0 <= br.y < cy0 + VIEW_ROWS:
-                flick = "*" if int(self.clock * 7 + br.x) % 2 == 0 else "+"
+                flick = "*" if int(t * 7 + br.x) % 2 == 0 else "+"
                 buf[VIEW_TOP + (br.y - cy0)][br.x - cx0] = (flick, GRADE_BRIGHT)
 
         for inter in self.world.interactables:
@@ -1610,7 +1864,6 @@ class BellglassGame:
                 d2 = (e.x - px) ** 2 + (e.y - py) ** 2
                 in_light = d2 <= lamp_r2 and self._has_los(px, py, e.x, e.y)
                 if not e.is_revealed and not in_light:
-                    # Ghostly Stalker outline when outside light
                     if d2 <= (lamp_r + 4) ** 2:
                         buf[VIEW_TOP + (e.y - cy0)][e.x - cx0] = (":", GRADE_GHOST)
                     continue
@@ -1625,11 +1878,10 @@ class BellglassGame:
                     grade = GRADE_BRIGHT
                     glyph = "X"
                 elif e.state == "staggered":
-                    glyph = "z" if int(self.clock * 8) % 2 == 0 else e.tpl.glyph.lower()
+                    glyph = "z" if int(t * 8) % 2 == 0 else e.tpl.glyph.lower()
                     grade = GRADE_DIM
                 elif e.state == "windup":
-                    grade = GRADE_BRIGHT if int(self.clock * 14) % 2 == 0 else GRADE_LIT
-                    # Show sharp spear/claw telegraph adjacent toward target!
+                    grade = GRADE_BRIGHT if int(t * 14) % 2 == 0 else GRADE_LIT
                     tx_off = 0 if px == e.x else (1 if px > e.x else -1)
                     ty_off = 0 if py == e.y else (1 if py > e.y else -1)
                     tc = vc + tx_off
@@ -1655,11 +1907,10 @@ class BellglassGame:
                 if pvc + 1 < GRID_COLS:
                     buf[pvr][pvc + 1] = (")", GRADE_BRIGHT)
             buf[pvr][pvc] = ("@" if pl.hurt_timer <= 0 else "!", GRADE_BRIGHT)
-            # Subtle lantern dot hovering behind shoulder when bright
             if not pl.lamp_hooded and pl.oil > 1.0:
                 lx = pvc - pl.fx
                 if 0 <= lx < GRID_COLS and buf[pvr][lx][0] in (" ", ".", ",", ":"):
-                    buf[pvr][lx] = ("*", GRADE_LIT if int(self.clock * 6) % 2 == 0 else GRADE_BRIGHT)
+                    buf[pvr][lx] = ("*", GRADE_LIT if int(t * 6) % 2 == 0 else GRADE_BRIGHT)
 
         # Slashes & Sparks & Floaters
         for sl in self.slashes:
@@ -1674,8 +1925,31 @@ class BellglassGame:
             if cy0 <= iy < cy0 + VIEW_ROWS:
                 self._put_str(buf, max(0, ix - cx0), VIEW_TOP + (iy - cy0), fl.text, GRADE_BRIGHT)
 
-        # Row 33: Clean hairline rule
-        self._put_str(buf, 0, VIEW_BOTTOM, "- " * (GRID_COLS // 2), GRADE_MIST)
+        # Row 33: Dynamic Duel / Proximity / Gear Separator Bar
+        self._put_str(buf, 0, VIEW_BOTTOM, "+" + "-" * (GRID_COLS - 2) + "+", GRADE_MIST)
+        if tgt and abs(tgt.x - px) + abs(tgt.y - py) <= 16:
+            e_pips = max(0, min(12, int(round(12 * tgt.hp / max(1, tgt.tpl.max_hp)))))
+            e_bar = "#" * e_pips + "-" * (12 - e_pips)
+            posture = "STAGGERED x2.4" if tgt.state == "staggered" else tgt.state.upper()
+            duel_str = f"--[ DUEL: {tgt.tpl.name}  [{e_bar}] {tgt.hp}/{tgt.tpl.max_hp}  {posture} ]--"
+            self._put_str(
+                buf,
+                2,
+                VIEW_BOTTOM,
+                duel_str[: GRID_COLS - 4],
+                GRADE_BRIGHT if tgt.state in ("windup", "staggered") else GRADE_LIT,
+            )
+        else:
+            near = self._nearby_prompt()
+            fork_ready = "FORK:READY" if self.player.fork_timer <= 0.0 else "FORK:WAIT "
+            right_tag = f"--[ {self.player.blade_name} ({self.player.damage}d) | Mint:{self.player.poultices} | {fork_ready} ]--"
+            if len(right_tag) < GRID_COLS - 6:
+                self._put_str(buf, GRID_COLS - len(right_tag) - 1, VIEW_BOTTOM, right_tag, GRADE_DIM)
+            if near:
+                max_left = max(16, GRID_COLS - len(right_tag) - 10)
+                self._put_str(buf, 2, VIEW_BOTTOM, f"--[ {near[:max_left]} ]--", GRADE_BRIGHT)
+            else:
+                self._put_str(buf, 2, VIEW_BOTTOM, "--[ CHRONICLE ]--", GRADE_LIT)
 
         # Rows 34..36: Inline Dialogue OR 3-Line Literary Log
         if self.screen == "dialogue" and self.active_dialogue is not None:

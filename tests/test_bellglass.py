@@ -198,6 +198,25 @@ class BellglassTests(unittest.TestCase):
         game.handle_action("fork")
         self.assertEqual(game.player.blade_tier, 2)
 
+    def test_rich_diorama_density_and_row33_context_bar(self) -> None:
+        game = BellglassGame(save_path=None)
+        self.assertGreaterEqual(len(game.world.decor_lines), 40)
+        title_buf = game.render_buffer()
+        title_non_space = sum(1 for row in title_buf for ch, _ in row if ch != " ")
+        self.assertGreater(title_non_space, 1400)
+
+        game.handle_action("confirm")
+        game.player.x, game.player.y = 26, 67
+        buf = game.render_buffer()
+        row33 = "".join(ch for ch, _ in buf[33])
+        self.assertIn("--[ [E] Speak: Old Hester ]--", row33)
+
+        warden = next(e for e in game.enemies if e.tpl.id == "e_warden_1")
+        warden.x, warden.y = 28, 67
+        game.active_target_id = warden.tpl.id
+        buf_duel = game.render_buffer()
+        self.assertIn("DUEL: Pike-Warden", "".join(ch for ch, _ in buf_duel[33]))
+
 
 if __name__ == "__main__":
     unittest.main()
