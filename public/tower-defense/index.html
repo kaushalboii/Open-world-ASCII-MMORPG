@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tactical ASCII Tower Defense & Wave Siege</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: #07080d;
+      color: #e6edf7;
+      font-family: 'Menlo', 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 10px 24px;
+    }
+    header {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    h1 {
+      font-size: 18px;
+      letter-spacing: 2.5px;
+      color: #00f0ff;
+      text-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
+    }
+    .sub {
+      font-size: 11px;
+      color: #8b9bb4;
+    }
+    .back-link {
+      color: #ffea00;
+      text-decoration: none;
+      border: 1px solid #444d66;
+      background: #111521;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+    .back-link:hover { border-color: #00f0ff; color: #ffffff; }
+    .canvas-wrap {
+      width: 100%;
+      max-width: 1100px;
+      border: 2px solid #2b3a55;
+      border-radius: 5px;
+      background: #0a0c12;
+      box-shadow: 0 0 28px rgba(0, 0, 0, 0.85);
+      overflow: hidden;
+    }
+    #tdCanvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1100 / 672;
+      cursor: crosshair;
+    }
+    .bar {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+      justify-content: center;
+    }
+    .btn {
+      background: #121726;
+      color: #c8d4e6;
+      border: 1px solid #30415e;
+      padding: 6px 10px;
+      border-radius: 3px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s, color 0.12s;
+    }
+    .btn:hover { border-color: #00f0ff; color: #ffffff; background: #1a2338; }
+    .btn.active { border-color: #50fa8c; background: #16332a; color: #ffffff; }
+    .btn.primary { border-color: #50fa8c; color: #50fa8c; }
+    .btn.warn { border-color: #ffa528; color: #ffa528; }
+    .btn.studio { border-color: #00f0ff; color: #00f0ff; }
+    .status-line {
+      width: 100%;
+      max-width: 1100px;
+      margin-top: 8px;
+      padding: 7px 10px;
+      background: #0e121d;
+      border: 1px solid #25324a;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #9bb0cf;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    #tdStatusHint { color: #50fa8c; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>TACTICAL ASCII TOWER DEFENSE &amp; WAVE SIEGE</h1>
+      <div class="sub">Turrets [=|=] (☼) [███] &lt;◈&gt; • Projectiles -&gt; ⚡ *** • Dynamic Damage ███ → ▓▓▓ → ▒▒▒ → ░░░</div>
+    </div>
+    <a class="back-link" href="../">← BOUNDLESS SPIRAL (MAIN PORTAL)</a>
+  </header>
+
+  <div class="canvas-wrap">
+    <canvas id="tdCanvas" width="1100" height="672"></canvas>
+  </div>
+
+  <div class="bar">
+    <button class="btn active" data-build="pulse">[1] [=|=] Pulse (50g)</button>
+    <button class="btn" data-build="tesla">[2] (☼) Tesla (75g)</button>
+    <button class="btn" data-build="mortar">[3] [███] Mortar (90g)</button>
+    <button class="btn" data-build="cryo">[4] &lt;◈&gt; Cryo (65g)</button>
+    <button class="btn" data-build="barricade">[5] [██] Wall (15g)</button>
+    <button class="btn primary" id="btnWave">▶ SEND WAVE [G]</button>
+    <button class="btn" id="btnUpgrade">⬆ UPGRADE [U]</button>
+    <button class="btn" id="btnTarget">🎯 TARGET [T]</button>
+    <button class="btn" id="btnRepair">🔧 REPAIR [R]</button>
+    <button class="btn warn" id="btnSell">💰 SELL [X]</button>
+  </div>
+
+  <div class="bar">
+    <button class="btn" id="btnSpeed">⏩ SPEED: 1x [F]</button>
+    <button class="btn" id="btnMap">🗺️ MAP: TWIN [M]</button>
+    <button class="btn studio" id="btnStudio">🎨 SPRITE STUDIO [F2]</button>
+    <button class="btn" id="btnPaint">✏️ PAINT CELL [E]</button>
+    <button class="btn" id="btnDmgDown">🧱 WALL -20% [-]</button>
+    <button class="btn" id="btnDmgUp">🧱 WALL +20% [+]</button>
+    <button class="btn" id="btnExport">💾 EXPORT JSON [X]</button>
+    <button class="btn" id="btnSfx">🔊 SFX: ON</button>
+    <button class="btn" id="btnCrt">📺 CRT: OFF</button>
+  </div>
+
+  <div class="status-line">
+    <span id="tdStatusHint">Loading simulation...</span>
+    <span>Python Terminal / Curses / Pygame source: <code>python_ascii_td/main.py</code></span>
+  </div>
+
+  <script type="module" src="./engine.js"></script>
+</body>
+</html>

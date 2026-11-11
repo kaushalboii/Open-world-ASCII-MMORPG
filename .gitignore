@@ -2,4 +2,7 @@ node_modules
 .DS_Store
 dist-ssr
 *.local
+__pycache__/
+*.py[cod]
+.pytest_cache/
 
