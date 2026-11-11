@@ -95,6 +95,7 @@ export class BellglassGame {
     this.lastBrazierPos = [24, 67];
     this.activeTargetId = null;
     this.hasExistingSave = false;
+    this._helpReturnScreen = 'title';
 
     this._initWeather();
     this.resetNewGame(true);
@@ -449,7 +450,7 @@ export class BellglassGame {
 
   handleAction(action) {
     if (this.screen === 'title') {
-      if (action === 'confirm' || action === 'interact') {
+      if (action === 'confirm' || action === 'interact' || action === 'fork') {
         if (this.hasExistingSave && this.loadGame()) return true;
         this.resetNewGame(false);
         return true;
@@ -459,6 +460,7 @@ export class BellglassGame {
         return true;
       }
       if (action === 'help') {
+        this._helpReturnScreen = 'title';
         this.screen = 'help';
         return true;
       }
@@ -466,21 +468,21 @@ export class BellglassGame {
     }
 
     if (this.screen === 'help') {
-      if (action === 'confirm' || action === 'cancel' || action === 'help' || action === 'ledger') {
-        this.screen = this.clock > 0 && this.player.hp > 0 ? 'play' : 'title';
+      if (action === 'confirm' || action === 'cancel' || action === 'help' || action === 'ledger' || action === 'fork') {
+        this.screen = this._helpReturnScreen === 'title' || this.player.hp > 0 ? this._helpReturnScreen : 'title';
       }
       return true;
     }
 
     if (this.screen === 'ledger') {
-      if (action === 'ledger' || action === 'cancel' || action === 'confirm') {
+      if (action === 'ledger' || action === 'cancel' || action === 'confirm' || action === 'fork') {
         this.screen = 'play';
       }
       return true;
     }
 
     if (this.screen === 'victory') {
-      if (action === 'confirm' || action === 'cancel') {
+      if (action === 'confirm' || action === 'cancel' || action === 'fork') {
         this.screen = 'play';
       } else if (action === 'new_game') {
         this.resetNewGame(false);
@@ -491,7 +493,7 @@ export class BellglassGame {
     }
 
     if (this.screen === 'dead') {
-      if (action === 'confirm' || action === 'interact') {
+      if (action === 'confirm' || action === 'interact' || action === 'fork') {
         this._reviveAtBrazier();
       }
       return true;
@@ -507,6 +509,7 @@ export class BellglassGame {
       return true;
     }
     if (action === 'help') {
+      this._helpReturnScreen = 'play';
       this.screen = 'help';
       return true;
     }
@@ -882,7 +885,7 @@ export class BellglassGame {
       if (idx >= 0 && idx < this.activeChoices.length) this.pickDialogueChoice(idx);
       return true;
     }
-    if ((action === 'confirm' || action === 'interact') && this.activeChoices.length > 0) {
+    if ((action === 'confirm' || action === 'interact' || action === 'fork') && this.activeChoices.length > 0) {
       this.pickDialogueChoice(this.selectedChoice);
     }
     return true;
@@ -1370,6 +1373,53 @@ export class BellglassGame {
     this._putStr(buf, 28, 16, '+--------------------------------------------+', GRADE_LIT);
   }
 
+  _renderDialogueChoices(buf) {
+    if (!this.activeChoices.length) return;
+    const maxW = GRID_COLS - 4;
+    const sep = '   ';
+    const rows = [];
+    let currentRow = [];
+    let curW = 0;
+    let selRowIdx = 0;
+
+    for (let i = 0; i < this.activeChoices.length; i++) {
+      const rawTok = `[${i + 1}] ${this.activeChoices[i].label}`;
+      const token = fitLine(rawTok, Math.min(rawTok.length, maxW));
+      const needed = currentRow.length === 0 ? token.length : sep.length + token.length;
+      if (currentRow.length > 0 && curW + needed > maxW) {
+        rows.push(currentRow);
+        currentRow = [];
+        curW = 0;
+      }
+      const xOffset = currentRow.length === 0 ? 0 : curW + sep.length;
+      currentRow.push({ idx: i, token, xOffset });
+      curW = xOffset + token.length;
+      if (i === this.selectedChoice) selRowIdx = rows.length;
+    }
+    if (currentRow.length > 0) rows.push(currentRow);
+
+    const winStart = rows.length > 2 ? Math.max(0, Math.min(rows.length - 2, selRowIdx)) : 0;
+    const visible = rows.slice(winStart, winStart + 2);
+    for (let rIdx = 0; rIdx < visible.length; rIdx++) {
+      const y = LOG_TOP + 1 + rIdx;
+      for (const item of visible[rIdx]) {
+        const isSel = item.idx === this.selectedChoice;
+        if (isSel) this._putStr(buf, 1 + item.xOffset, y, '>', GRADE_BRIGHT);
+        this._putStr(buf, 2 + item.xOffset, y, item.token, isSel ? GRADE_BRIGHT : GRADE_LIT);
+      }
+    }
+    if (rows.length === 1) {
+      const sel = this.activeChoices[this.selectedChoice];
+      this._putStr(
+        buf,
+        2,
+        LOG_TOP + 2,
+        fitLine(`Selected [${this.selectedChoice + 1}]: ${sel.label}`, maxW),
+        GRADE_DIM
+      );
+    }
+  }
+
   _renderWorld(buf) {
     let shakeX = 0;
     let shakeY = 0;
@@ -1665,20 +1715,7 @@ export class BellglassGame {
     if (this.screen === 'dialogue' && this.activeDialogue) {
       const line = this.activeDialogue.lineFn(this);
       this._putStr(buf, 1, LOG_TOP, fitLine(line, GRID_COLS - 2), GRADE_BRIGHT);
-      const cStrs = this.activeChoices.map((c, i) => `[${i + 1}] ${c.label}`);
-      this._putStr(buf, 2, LOG_TOP + 1, fitLine(cStrs.slice(0, 3).join('   '), GRID_COLS - 4), GRADE_LIT);
-      if (cStrs.length > 3) {
-        this._putStr(buf, 2, LOG_TOP + 2, fitLine(cStrs.slice(3, 6).join('   '), GRID_COLS - 4), GRADE_DIM);
-      } else if (this.activeChoices.length > 0) {
-        const sel = this.activeChoices[this.selectedChoice];
-        this._putStr(
-          buf,
-          2,
-          LOG_TOP + 2,
-          fitLine(`Selected [${this.selectedChoice + 1}]: ${sel.label}`, GRID_COLS - 4),
-          GRADE_DIM
-        );
-      }
+      this._renderDialogueChoices(buf);
     } else {
       const recent = this.log.slice(-LOG_ROWS);
       for (let idx = 0; idx < LOG_ROWS; idx++) {

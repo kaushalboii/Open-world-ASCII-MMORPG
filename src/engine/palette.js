@@ -45,3 +45,4 @@ export function fitLine(text, width) {
   }
   return cleaned.padEnd(width, ' ');
 }
+

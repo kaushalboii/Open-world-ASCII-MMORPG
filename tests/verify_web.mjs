@@ -107,13 +107,25 @@ const wHp0 = warden.hp;
 game.handleAction('strike');
 assert.equal(wHp0 - warden.hp, 24);
 
-// Smith trade + Boss Vane defeat + 5 Bells -> Victory
+// Smith trade + 5-choice dialogue wrap check + Boss Vane defeat + 5 Bells -> Victory
 game.player.brass = 80;
+game.player.oil = 10;
 game.player.x = 161;
 game.player.y = 51;
 game.handleAction('interact');
 assert.equal(game.screen, 'dialogue');
-game.handleAction('choice_1');
+assert.equal(game.activeChoices.length, 5);
+{
+  const dBuf = game.renderBuffer();
+  const row35 = dBuf[35].map(([c]) => c).join('');
+  const row36 = dBuf[36].map(([c]) => c).join('');
+  const combined = `${row35}\n${row36}`;
+  for (let i = 1; i <= 5; i++) {
+    assert.ok(combined.includes(`[${i}]`), `Missing choice [${i}] in wrapped dialogue rows:\n${combined}`);
+  }
+  assert.ok(!combined.includes('..'), `Unexpected truncation in dialogue choices:\n${combined}`);
+}
+game.handleAction('fork'); // Confirm via Space ('fork')
 assert.equal(game.player.bladeTier, 2);
 game.handleAction('cancel');
 
@@ -153,24 +165,50 @@ for (const scr of ['title', 'help', 'play', 'ledger', 'dead', 'victory']) {
   }
 }
 
-// 3. CrtCanvasRenderer + BellAudio smoke verification against mock 2D Canvas
+// Space ('fork') confirms title, help, ledger, dead, victory modals cleanly
+const modalCheck = new BellglassGame({ seed: 419 });
+assert.equal(modalCheck.screen, 'title');
+modalCheck.handleAction('fork');
+assert.equal(modalCheck.screen, 'play');
+modalCheck.handleAction('help');
+assert.equal(modalCheck.screen, 'help');
+modalCheck.handleAction('fork');
+assert.equal(modalCheck.screen, 'play');
+modalCheck.handleAction('ledger');
+assert.equal(modalCheck.screen, 'ledger');
+modalCheck.handleAction('fork');
+assert.equal(modalCheck.screen, 'play');
+modalCheck.screen = 'dead';
+modalCheck.handleAction('fork');
+assert.equal(modalCheck.screen, 'play');
+modalCheck.screen = 'victory';
+modalCheck.handleAction('fork');
+assert.equal(modalCheck.screen, 'play');
+
+// 3. CrtCanvasRenderer (both fallback & offscreen atlas path) + BellAudio smoke verification
 let fillTextCalls = 0;
-const mockCtx = {
+let drawImageCalls = 0;
+const makeMockCtx = () => ({
   fillStyle: '#000',
   shadowColor: '#000',
   shadowBlur: 0,
   font: '',
   textBaseline: 'top',
   setTransform() {},
+  clearRect() {},
   createRadialGradient() {
     return { addColorStop() {} };
   },
   fillRect() {},
+  drawImage() {
+    drawImageCalls++;
+  },
   fillText(ch) {
     assert.equal(ch.length, 1);
     fillTextCalls++;
   },
-};
+});
+const mockCtx = makeMockCtx();
 const mockCanvas = {
   width: 0,
   height: 0,
@@ -184,8 +222,23 @@ const mockCanvas = {
 const renderer = new CrtCanvasRenderer(mockCanvas);
 game.screen = 'title';
 renderer.draw(game.renderBuffer());
-assert.ok(fillTextCalls > 150, `Expected substantial canvas text draw, saw ${fillTextCalls}`);
+assert.ok(fillTextCalls > 150, `Expected substantial fallback fillText draw, saw ${fillTextCalls}`);
 assert.deepEqual(renderer.hitTestCell(55, 42), { col: 5, row: 2 });
+
+// Now test Atlas fast-path when offscreen document.createElement is available
+const prevDoc = globalThis.document;
+globalThis.document = {
+  createElement(tag) {
+    assert.equal(tag, 'canvas');
+    return { width: 0, height: 0, getContext: () => makeMockCtx() };
+  },
+};
+const atlasRenderer = new CrtCanvasRenderer(mockCanvas);
+assert.ok(atlasRenderer.atlas !== null, 'Expected glyph atlas to build when canvas API exists');
+assert.ok(atlasRenderer.crtOverlay !== null, 'Expected pre-baked CRT overlay');
+atlasRenderer.draw(game.renderBuffer());
+assert.ok(drawImageCalls > 150, `Expected atlas drawImage calls, saw ${drawImageCalls}`);
+globalThis.document = prevDoc;
 
 const audio = new BellAudio();
 audio.play('fork'); // Safe no-op without browser AudioContext
@@ -195,6 +248,7 @@ console.log(
     webReachability: 'PASS',
     simulationWalkthrough: 'PASS',
     canvasFillTextCalls: fillTextCalls,
+    atlasDrawImageCalls: drawImageCalls,
     gridDimensions: [GRID_COLS, GRID_ROWS],
   })
 );

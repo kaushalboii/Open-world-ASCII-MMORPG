@@ -170,6 +170,34 @@ class BellglassTests(unittest.TestCase):
         self.assertEqual(res["cols"], GRID_COLS)
         self.assertEqual(res["screen"], "play")
 
+    def test_dialogue_wrap_no_truncation_and_fork_confirm(self) -> None:
+        game = BellglassGame(save_path=None)
+        # Space ('fork') starts game cleanly from title and closes modals
+        game.handle_action("fork")
+        self.assertEqual(game.screen, "play")
+        for modal in ("help", "ledger"):
+            game.handle_action(modal)
+            self.assertEqual(game.screen, modal)
+            game.handle_action("fork")
+            self.assertEqual(game.screen, "play")
+
+        # Marrow with 5 simultaneous choices must wrap cleanly across rows 35..36 without '..' truncation
+        game.player.brass = 100
+        game.player.oil = 10.0
+        game.player.x, game.player.y = 161, 51
+        game.handle_action("interact")
+        self.assertEqual(game.screen, "dialogue")
+        self.assertEqual(len(game.active_choices), 5)
+        buf = game.render_buffer()
+        choices_text = "".join(ch for ch, _ in buf[35]) + "\n" + "".join(ch for ch, _ in buf[36])
+        for i in range(1, 6):
+            self.assertIn(f"[{i}]", choices_text)
+        self.assertNotIn("..", choices_text)
+
+        # Space ('fork') confirms selected dialogue choice
+        game.handle_action("fork")
+        self.assertEqual(game.player.blade_tier, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

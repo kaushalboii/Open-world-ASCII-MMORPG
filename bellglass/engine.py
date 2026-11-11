@@ -190,6 +190,7 @@ class BellglassGame:
         self.sfx_callback: Optional[Callable[[str], None]] = None
 
         self.screen = "title"  # title | play | dialogue | ledger | help | victory | dead
+        self._help_return_screen = "title"
         self.clock: float = 0.0
         self.hit_stop: float = 0.0
         self.cam_x: float = 0.0
@@ -494,7 +495,7 @@ class BellglassGame:
     def handle_action(self, action: str) -> bool:
         """Process a normalized semantic input action. Returns False to quit."""
         if self.screen == "title":
-            if action in ("confirm", "interact"):
+            if action in ("confirm", "interact", "fork"):
                 if self.has_existing_save and self.load_game():
                     return True
                 self.reset_new_game(go_title=False)
@@ -503,6 +504,7 @@ class BellglassGame:
                 self.reset_new_game(go_title=False)
                 return True
             if action == "help":
+                self._help_return_screen = "title"
                 self.screen = "help"
                 return True
             if action == "quit":
@@ -510,21 +512,21 @@ class BellglassGame:
             return True
 
         if self.screen == "help":
-            if action in ("confirm", "cancel", "help", "ledger"):
-                self.screen = "play" if self.clock > 0 and self.player.hp > 0 else "title"
+            if action in ("confirm", "cancel", "help", "ledger", "fork"):
+                self.screen = self._help_return_screen if (self._help_return_screen == "title" or self.player.hp > 0) else "title"
             elif action == "quit":
                 return False
             return True
 
         if self.screen == "ledger":
-            if action in ("ledger", "cancel", "confirm"):
+            if action in ("ledger", "cancel", "confirm", "fork"):
                 self.screen = "play"
             elif action == "quit":
                 return False
             return True
 
         if self.screen == "victory":
-            if action in ("confirm", "cancel"):
+            if action in ("confirm", "cancel", "fork"):
                 self.screen = "play"
             elif action == "new_game":
                 self.reset_new_game(go_title=False)
@@ -533,7 +535,7 @@ class BellglassGame:
             return True
 
         if self.screen == "dead":
-            if action in ("confirm", "interact"):
+            if action in ("confirm", "interact", "fork"):
                 self._revive_at_brazier()
             elif action == "quit":
                 return False
@@ -548,6 +550,7 @@ class BellglassGame:
             self.screen = "title"
             return True
         if action == "help":
+            self._help_return_screen = "play"
             self.screen = "help"
             return True
         if action == "ledger":
@@ -885,7 +888,7 @@ class BellglassGame:
             if 0 <= idx < len(self.active_choices):
                 self._pick_choice(idx)
             return True
-        if action in ("confirm", "interact") and self.active_choices:
+        if action in ("confirm", "interact", "fork") and self.active_choices:
             self._pick_choice(self.selected_choice)
         return True
 
@@ -1352,6 +1355,44 @@ class BellglassGame:
         self._put_str(buf, 28, 15, "|  [Enter / E] Wake at Nearest Ember Brazier |", GRADE_DIM)
         self._put_str(buf, 28, 16, "+--------------------------------------------+", GRADE_LIT)
 
+    def _render_dialogue_choices(self, buf: List[List[Tuple[str, int]]]) -> None:
+        if not self.active_choices:
+            return
+        max_w = GRID_COLS - 4
+        sep = "   "
+        rows: List[List[Tuple[int, str, int]]] = []
+        current_row: List[Tuple[int, str, int]] = []
+        cur_w = 0
+        sel_row_idx = 0
+
+        for i, c in enumerate(self.active_choices):
+            raw_tok = f"[{i + 1}] {c.label}"
+            token = fit_line(raw_tok, min(len(raw_tok), max_w))
+            needed = len(token) if not current_row else len(sep) + len(token)
+            if current_row and cur_w + needed > max_w:
+                rows.append(current_row)
+                current_row = []
+                cur_w = 0
+            x_offset = 0 if not current_row else cur_w + len(sep)
+            current_row.append((i, token, x_offset))
+            cur_w = x_offset + len(token)
+            if i == self.selected_choice:
+                sel_row_idx = len(rows)
+        if current_row:
+            rows.append(current_row)
+
+        win_start = max(0, min(len(rows) - 2, sel_row_idx)) if len(rows) > 2 else 0
+        for r_idx, row_items in enumerate(rows[win_start : win_start + 2]):
+            y = LOG_TOP + 1 + r_idx
+            for idx, token, x_offset in row_items:
+                is_sel = idx == self.selected_choice
+                if is_sel:
+                    self._put_str(buf, 1 + x_offset, y, ">", GRADE_BRIGHT)
+                self._put_str(buf, 2 + x_offset, y, token, GRADE_BRIGHT if is_sel else GRADE_LIT)
+        if len(rows) == 1:
+            sel = self.active_choices[self.selected_choice]
+            self._put_str(buf, 2, LOG_TOP + 2, fit_line(f"Selected [{self.selected_choice + 1}]: {sel.label}", max_w), GRADE_DIM)
+
     def _render_world(self, buf: List[List[Tuple[str, int]]]) -> None:
         # 1. Compute trauma camera shake offset
         shake_x = 0
@@ -1640,16 +1681,7 @@ class BellglassGame:
         if self.screen == "dialogue" and self.active_dialogue is not None:
             line = self.active_dialogue.line_fn(self)
             self._put_str(buf, 1, LOG_TOP, fit_line(line, GRID_COLS - 2), GRADE_BRIGHT)
-            # Render choices cleanly across rows 35..36
-            c_strs = [f"[{i+1}] {c.label}" for i, c in enumerate(self.active_choices)]
-            row_a = "   ".join(c_strs[:3])
-            row_b = "   ".join(c_strs[3:6])
-            self._put_str(buf, 2, LOG_TOP + 1, fit_line(row_a, GRID_COLS - 4), GRADE_LIT)
-            if row_b:
-                self._put_str(buf, 2, LOG_TOP + 2, fit_line(row_b, GRID_COLS - 4), GRADE_DIM)
-            elif self.active_choices:
-                sel = self.active_choices[self.selected_choice]
-                self._put_str(buf, 2, LOG_TOP + 2, fit_line(f"Selected [{self.selected_choice+1}]: {sel.label}", GRID_COLS - 4), GRADE_DIM)
+            self._render_dialogue_choices(buf)
         else:
             recent = self.log[-LOG_ROWS:]
             for idx in range(LOG_ROWS):

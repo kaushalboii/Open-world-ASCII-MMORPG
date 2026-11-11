@@ -55,10 +55,8 @@ body {
 
 canvas#crt {
   display: block;
-  width: auto;
+  width: min(1144px, calc(100vw - 48px), calc((100vh - 76px) * 1144 / 760));
   height: auto;
-  max-width: 100%;
-  max-height: calc(100vh - 76px);
   aspect-ratio: 1144 / 760;
   cursor: pointer;
 }
@@ -130,6 +128,7 @@ canvas#crt {
     display: flex;
   }
   canvas#crt {
-    max-height: calc(100vh - 156px);
+    width: min(1144px, calc(100vw - 48px), calc((100vh - 156px) * 1144 / 760));
   }
 }
+

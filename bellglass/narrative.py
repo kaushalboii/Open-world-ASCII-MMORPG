@@ -142,9 +142,9 @@ def build_dialogue_nodes() -> Dict[str, DialogueNode]:
             speaker="Old Hester",
             line_fn=_hester_greeting,
             choices=[
-                DialogueChoice("Ask about the five clappers", "hester_clappers"),
-                DialogueChoice("Ask how salt-crystals break", "hester_fork"),
-                DialogueChoice("Step back to the pier", "END"),
+                DialogueChoice("Five parish clappers", "hester_clappers"),
+                DialogueChoice("Breaking salt crystals", "hester_fork"),
+                DialogueChoice("Step back to pier", "END"),
             ],
         ),
         "hester_clappers": DialogueNode(
@@ -164,9 +164,9 @@ def build_dialogue_nodes() -> Dict[str, DialogueNode]:
             speaker="Prior Tomas",
             line_fn=_tomas_greeting,
             choices=[
-                DialogueChoice("Why did Magistrate Vane drown the bells?", "tomas_why"),
-                DialogueChoice("Ask about the secret shoal south of the dike", "tomas_shoal"),
-                DialogueChoice("Leave the altar in peace", "END"),
+                DialogueChoice("Why sink the bells?", "tomas_why"),
+                DialogueChoice("Secret dike shoal", "tomas_shoal"),
+                DialogueChoice("Leave altar", "END"),
             ],
         ),
         "tomas_why": DialogueNode(
@@ -187,34 +187,37 @@ def build_dialogue_nodes() -> Dict[str, DialogueNode]:
             line_fn=_marrow_greeting,
             choices=[
                 DialogueChoice(
-                    "Temper blade -> Burnished Bronze (35 Brass)",
+                    "Temper Blade (35B)",
                     "marrow_root",
                     cond=lambda g: g.player.blade_tier == 1 and g.player.brass >= 35,
                     effect=_temper_blade,
                 ),
                 DialogueChoice(
-                    "Temper blade -> Bell-Metal Sabre (70 Brass)",
+                    "Bell Sabre (70B)",
                     "marrow_root",
                     cond=lambda g: g.player.blade_tier == 2 and g.player.brass >= 70,
                     effect=_temper_blade,
                 ),
                 DialogueChoice(
-                    "Upgrade lantern housing (Copper / Fresnel)",
+                    "Copper Lamp (30B)",
                     "marrow_root",
-                    cond=lambda g: (
-                        (g.player.lamp_tier == 1 and g.player.brass >= 30)
-                        or (g.player.lamp_tier == 2 and g.player.brass >= 65)
-                    ),
+                    cond=lambda g: g.player.lamp_tier == 1 and g.player.brass >= 30,
                     effect=_upgrade_lamp,
                 ),
                 DialogueChoice(
-                    "Refill oil & reed poultice (12 Brass)",
+                    "Fresnel Lamp (65B)",
+                    "marrow_root",
+                    cond=lambda g: g.player.lamp_tier == 2 and g.player.brass >= 65,
+                    effect=_upgrade_lamp,
+                ),
+                DialogueChoice(
+                    "Oil+Poultice (12B)",
                     "marrow_root",
                     cond=lambda g: g.player.brass >= 12 and (g.player.oil < g.player.max_oil or g.player.poultices < 4),
                     effect=_buy_oil,
                 ),
-                DialogueChoice("Ask about the High Foundry path", "marrow_foundry"),
-                DialogueChoice("Step away from the anvil", "END"),
+                DialogueChoice("Foundry path", "marrow_foundry"),
+                DialogueChoice("Leave anvil", "END"),
             ],
         ),
         "marrow_foundry": DialogueNode(
@@ -229,11 +232,11 @@ def build_dialogue_nodes() -> Dict[str, DialogueNode]:
             line_fn=_callum_greeting,
             choices=[
                 DialogueChoice(
-                    "Tell me where Pip was last seen",
+                    "Where is Apprentice Pip?",
                     "callum_pip",
                     effect=lambda g: g.flags.__setitem__("callum_quest", True),
                 ),
-                DialogueChoice("Ask about Redwick's bell clapper", "callum_clapper"),
+                DialogueChoice("Redwick clapper location", "callum_clapper"),
                 DialogueChoice("Move along", "END"),
             ],
         ),
@@ -255,12 +258,12 @@ def build_dialogue_nodes() -> Dict[str, DialogueNode]:
             line_fn=_pip_greeting,
             choices=[
                 DialogueChoice(
-                    "Point him north to Redwick & give flare direction (+45 Brass)",
+                    "Send Pip north to Redwick (+45B)",
                     "pip_saved",
                     cond=lambda g: not g.flags.get("pip_rescued"),
                     effect=_rescue_pip,
                 ),
-                DialogueChoice("Leave the wreck cove", "END"),
+                DialogueChoice("Leave wreck cove", "END"),
             ],
         ),
         "pip_saved": DialogueNode(

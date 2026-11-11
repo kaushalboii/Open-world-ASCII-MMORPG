@@ -87,9 +87,9 @@ export function buildDialogueNodes() {
         return 'Old Hester: All five tongues awake. Look at the water—even the mist remembers which way is sea.';
       },
       choices: [
-        { label: 'Ask about the five clappers', to: 'hester_clappers' },
-        { label: 'Ask how salt-crystals break', to: 'hester_fork' },
-        { label: 'Step back to the pier', to: 'END' },
+        { label: 'Five parish clappers', to: 'hester_clappers' },
+        { label: 'Breaking salt crystals', to: 'hester_fork' },
+        { label: 'Step back to pier', to: 'END' },
       ],
     },
     hester_clappers: {
@@ -113,9 +113,9 @@ export function buildDialogueNodes() {
         return 'Prior Tomas: Vane chained the nave bridge from the northwest confessional loft. Mud swallowed our hymnals.';
       },
       choices: [
-        { label: 'Why did Magistrate Vane drown the bells?', to: 'tomas_why' },
-        { label: 'Ask about the secret shoal south of the dike', to: 'tomas_shoal' },
-        { label: 'Leave the altar in peace', to: 'END' },
+        { label: 'Why sink the bells?', to: 'tomas_why' },
+        { label: 'Secret dike shoal', to: 'tomas_shoal' },
+        { label: 'Leave altar', to: 'END' },
       ],
     },
     tomas_why: {
@@ -142,31 +142,37 @@ export function buildDialogueNodes() {
       },
       choices: [
         {
-          label: 'Temper blade -> Burnished Bronze (35 Brass)',
+          label: 'Temper Blade (35B)',
           to: 'marrow_root',
           cond: (g) => g.player.bladeTier === 1 && g.player.brass >= 35,
           effect: temperBlade,
         },
         {
-          label: 'Temper blade -> Bell-Metal Sabre (70 Brass)',
+          label: 'Bell Sabre (70B)',
           to: 'marrow_root',
           cond: (g) => g.player.bladeTier === 2 && g.player.brass >= 70,
           effect: temperBlade,
         },
         {
-          label: 'Upgrade lantern housing (Copper / Fresnel)',
+          label: 'Copper Lamp (30B)',
           to: 'marrow_root',
-          cond: (g) => (g.player.lampTier === 1 && g.player.brass >= 30) || (g.player.lampTier === 2 && g.player.brass >= 65),
+          cond: (g) => g.player.lampTier === 1 && g.player.brass >= 30,
           effect: upgradeLamp,
         },
         {
-          label: 'Refill oil & reed poultice (12 Brass)',
+          label: 'Fresnel Lamp (65B)',
+          to: 'marrow_root',
+          cond: (g) => g.player.lampTier === 2 && g.player.brass >= 65,
+          effect: upgradeLamp,
+        },
+        {
+          label: 'Oil+Poultice (12B)',
           to: 'marrow_root',
           cond: (g) => g.player.brass >= 12 && (g.player.oil < g.player.maxOil || g.player.poultices < 4),
           effect: buyOil,
         },
-        { label: 'Ask about the High Foundry path', to: 'marrow_foundry' },
-        { label: 'Step away from the anvil', to: 'END' },
+        { label: 'Foundry path', to: 'marrow_foundry' },
+        { label: 'Leave anvil', to: 'END' },
       ],
     },
     marrow_foundry: {
@@ -185,11 +191,11 @@ export function buildDialogueNodes() {
       },
       choices: [
         {
-          label: 'Tell me where Pip was last seen',
+          label: 'Where is Apprentice Pip?',
           to: 'callum_pip',
           effect: (g) => { g.flags.callum_quest = true; },
         },
-        { label: "Ask about Redwick's bell clapper", to: 'callum_clapper' },
+        { label: 'Redwick clapper location', to: 'callum_clapper' },
         { label: 'Move along', to: 'END' },
       ],
     },
@@ -214,12 +220,12 @@ export function buildDialogueNodes() {
       },
       choices: [
         {
-          label: 'Point him north to Redwick & give flare direction (+45 Brass)',
+          label: 'Send Pip north to Redwick (+45B)',
           to: 'pip_saved',
           cond: (g) => !g.flags.pip_rescued,
           effect: rescuePip,
         },
-        { label: 'Leave the wreck cove', to: 'END' },
+        { label: 'Leave wreck cove', to: 'END' },
       ],
     },
     pip_saved: {
