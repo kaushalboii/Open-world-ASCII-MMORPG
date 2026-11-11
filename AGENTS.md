@@ -1,4 +1,4 @@
-# Agent Guide — Open-world-ASCII-MMORPG / Bellglass: The Drowned Province
+# Agent Guide — Open-world-ASCII-MMORPG / IRONCROWN (Bellglass Preserved Intact)
 
 ## Game-Dev Skills (`awesome-gamedev-agent-skills`)
 
@@ -8,19 +8,18 @@ This repository integrates the game-development skills and master `router` from 
 - For any game-development request, start with `.agents/skills/router/SKILL.md` to classify the engine and task, then read only the selected `.agents/skills/<skill-name>/SKILL.md` files on demand.
 - Because the skills are flattened into `.agents/skills/`, resolve catalog references like `skills/<category>/<name>/SKILL.md` directly as `.agents/skills/<name>/SKILL.md`.
 
-## Active Project Contract (Bellglass Dual Amber CRT Engine)
+## Active Project Contract (Dual Amber CRT ASCII Engine)
 
-The project implements **BELLGLASS: The Drowned Province** across both a pure-vanilla Web ES-module engine and a parity Python 3.9+ package — **keep it on this custom ASCII CRT engine** (see `.agents/skills/router/references/custom-engines.md`) rather than scaffolding Godot, Unity, or Phaser unless explicitly requested.
+The project keeps **all custom games on the strict single-cell printable ASCII (`32..126`) `104x38` Dual Amber CRT engine** (see `.agents/skills/router/references/custom-engines.md`) rather than scaffolding Godot, Unity, or Phaser unless explicitly requested.
 
-- **Web Flagship (GitHub Pages root):**
-  - `index.html` -> [`src/main.js`](src/main.js) (`requestAnimationFrame` delta-time loop, capped at `0.05s`)
-  - Simulation, wall-shadow FOV lantern raycast, Tuning Fork wave acoustics, weather particles, and parry/stagger combat: [`src/engine/game.js`](src/engine/game.js), [`src/engine/worldData.js`](src/engine/worldData.js), [`src/engine/narrative.js`](src/engine/narrative.js), [`src/engine/palette.js`](src/engine/palette.js)
-  - Rendering & WebAudio: `104x38` HiDPI `<canvas>` 5-grade P3 Amber CRT rasterizer in [`src/engine/crtRenderer.js`](src/engine/crtRenderer.js) + procedural WebAudio synth in [`src/engine/audio.js`](src/engine/audio.js)
-  - Build: `npm run dev` (Vite `^6.0.7`, port `3000`), `npm run build` (`dist/`, `base: './'`), deployed to GitHub Pages via `.github/workflows/deploy.yml`.
-- **Python ASCII Edition:**
-  - Entry & CLI: [`play.py`](play.py) -> `bellglass/main.py` (`python3 play.py` for zero-dependency `curses`, `--pygame` for optional `pygame-ce` window, `--headless-demo` for smoke simulation)
-  - Core modules: `bellglass/engine.py`, `bellglass/world_data.py`, `bellglass/narrative.py`, `bellglass/palette.py`, `bellglass/renderer_curses.py`, `bellglass/renderer_pygame.py`
-  - Glyph invariant: strictly single-cell printable ASCII (`32..126`) across all `104x38` frames so both terminal `curses` and `<canvas>` grids never suffer East-Asian width drift.
+- **Active Flagship — IRONCROWN: The Realm in Winter (Feudal War, Logistics & Live Siege Tactics):**
+  - Entry Web: [`index.html`](index.html) -> [`src/main.js`](src/main.js) (shared [`src/engine/crtRenderer.js`](src/engine/crtRenderer.js) & [`src/engine/palette.js`](src/engine/palette.js))
+  - War Modules: `src/war/worldData.js`, `src/war/ai.js`, `src/war/narrative.js`, `src/war/audio.js`, `src/war/game.js`
+  - Python CLI Parity: [`play.py`](play.py) -> `ironcrown/main.py` (`ironcrown/engine.py`, `ironcrown/world_data.py`, `ironcrown/ai.py`, `ironcrown/narrative.py`, `ironcrown/palette.py`, `ironcrown/renderer_curses.py`, `ironcrown/renderer_pygame.py`)
+  - Automated Tests: `node tests/verify_ironcrown_web.mjs` and `tests/test_ironcrown.py`
+- **Archived Game Preserved Intact — BELLGLASS: The Drowned Province:**
+  - All Bellglass source & test files remain untouched in `src/engine/game.js`, `src/engine/worldData.js`, `src/engine/narrative.js`, `src/engine/audio.js`, `bellglass/*`, `tests/verify_web.mjs`, and `tests/test_bellglass.py`, with boot references cleanly commented (`// [BELLGLASS ARCHIVE]`) in shared entrypoints.
 - **Automated Verification:**
-  - Python suite: `python3 -m unittest discover -s tests -v`
-  - Web ES-module suite: `node tests/verify_web.mjs`
+  - Python suite (Ironcrown + Bellglass): `python3 -m unittest discover -s tests -v`
+  - Ironcrown Web ES-module suite: `node tests/verify_ironcrown_web.mjs`
+  - Archived Bellglass Web ES-module suite: `node tests/verify_web.mjs`

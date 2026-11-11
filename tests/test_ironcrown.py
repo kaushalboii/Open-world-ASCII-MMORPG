@@ -1,0 +1,117 @@
+"""Python automated test suite for IRONCROWN: The Realm in Winter."""
+
+from __future__ import annotations
+
+import tempfile
+import unittest
+from pathlib import Path
+
+from ironcrown.ai import compute_house_betrayal_utility
+from ironcrown.engine import IroncrownGame
+from ironcrown.main import run_headless_demo
+from ironcrown.narrative import compute_war_objective
+from ironcrown.palette import GRID_COLS, GRID_ROWS
+from ironcrown.world_data import HOLD_TEMPLATES, REALM_H, REALM_W, TERRAIN_META, create_realm_grid
+
+
+class IroncrownTests(unittest.TestCase):
+    def _assert_strict_grid(self, buf) -> None:
+        self.assertEqual(len(buf), GRID_ROWS)
+        for row in buf:
+            self.assertEqual(len(row), GRID_COLS)
+            for ch, grade in row:
+                self.assertEqual(len(ch), 1)
+                self.assertTrue(32 <= ord(ch) <= 126, f"Bad char {ch!r}")
+                self.assertIn(grade, (0, 1, 2, 3, 4))
+
+    def test_realm_reachability_and_grid_hygiene(self) -> None:
+        grid, villages = create_realm_grid()
+        visited = {(28, 16)}
+        queue = [(28, 16)]
+        while queue:
+            x, y = queue.pop(0)
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < REALM_W and 0 <= ny < REALM_H:
+                    if TERRAIN_META[grid[ny][nx]]["passable"] and (nx, ny) not in visited:
+                        visited.add((nx, ny))
+                        queue.append((nx, ny))
+        for h in HOLD_TEMPLATES:
+            self.assertIn((h["x"], h["y"]), visited)
+        for vx, vy in villages:
+            self.assertIn((vx, vy), visited)
+
+    def test_all_screens_strict_104x38_ascii(self) -> None:
+        g = IroncrownGame(save_path=None, seed=717)
+        self._assert_strict_grid(g.render_buffer())  # title
+        g.handle_action("confirm")
+        self._assert_strict_grid(g.render_buffer())  # campaign + prologue
+        g.handle_action("confirm")
+        g.handle_action("ledger")
+        self._assert_strict_grid(g.render_buffer())  # ledger
+        g.handle_action("cancel")
+        g.handle_action("help")
+        self._assert_strict_grid(g.render_buffer())  # help
+        g.handle_action("cancel")
+        g.start_siege_battle(next(h for h in g.holds if h["id"] == "redwatch"))
+        self._assert_strict_grid(g.render_buffer())  # battle
+
+    def test_supply_winter_dread_and_siege_ram_progression(self) -> None:
+        g = IroncrownGame(save_path=None, seed=717)
+        g.handle_action("confirm")
+        self.assertEqual(g.active_story["id"], "prologue")
+        g.handle_action("confirm")
+
+        # Dread mitigates Utility AI betrayal
+        vance = g.get_house("vance")
+        th = g.get_house("thorne")
+        th["dread"] = 0
+        low_d = compute_house_betrayal_utility(vance, th, 80, g.holds)
+        th["dread"] = 85
+        high_d = compute_house_betrayal_utility(vance, th, 80, g.holds)
+        self.assertLess(high_d, low_d)
+
+        # Build Siege Ram -> Council Bribe -> Siege Kingsbridge Gate Breach
+        g.handle_action("interact")
+        g.handle_action("choice_4")  # Build Ram
+        g.handle_action("cancel")
+        kb = next(h for h in g.holds if h["id"] == "kingsbridge")
+        g.start_siege_battle(kb)
+        self.assertIn("Ram [5]", compute_war_objective(g)["now"])
+        ram_sq = next(s for s in g.battle["player_squads"] if s["type"] == "ram")
+        ram_sq["x"] = g.battle["map"]["wall_x"] - 1
+        ram_sq["y"] = g.battle["map"]["gate_y"]
+        g.handle_action("choice_5")
+        while not g.battle["gate_breached"]:
+            g.handle_action("interact")
+        self.assertTrue(g.battle["gate_breached"])
+
+        for es in g.battle["enemy_squads"]:
+            es["morale"] = 10
+            es["routed"] = True
+        g.handle_action("confirm")
+        self.assertEqual(kb["owner"], "thorne")
+        self.assertEqual(g.active_story["id"], "highcrown_gates")
+
+    def test_atomic_save_and_bak_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sp = Path(tmp) / "save.json"
+            g = IroncrownGame(save_path=sp, seed=717)
+            g.handle_action("confirm")
+            g.handle_action("confirm")
+            g.get_house("thorne")["treasury"] = 777
+            self.assertTrue(g.save_game())
+            self.assertTrue(g.save_game())  # creates .bak
+            sp.write_text("{CORRUPT", encoding="utf-8")
+            g2 = IroncrownGame(save_path=sp, seed=717)
+            self.assertTrue(g2.load_game())
+            self.assertEqual(g2.get_house("thorne")["treasury"], 777)
+
+    def test_headless_demo_smoke(self) -> None:
+        res = run_headless_demo(seed=717)
+        self.assertEqual((res["rows"], res["cols"]), (38, 104))
+        self.assertEqual(res["screen"], "battle")
+
+
+if __name__ == "__main__":
+    unittest.main()

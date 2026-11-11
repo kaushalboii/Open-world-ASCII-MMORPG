@@ -1,10 +1,14 @@
 /**
- * Web flagship entry loop for Bellglass: The Drowned Province.
+ * Web flagship entry loop for IRONCROWN: The Realm in Winter.
+ * // [BELLGLASS ARCHIVE] Previously booted BellglassGame via ./engine/game.js & ./engine/audio.js.
  */
 
-import { BellAudio } from './engine/audio.js';
+// [BELLGLASS ARCHIVE] import { BellAudio } from './engine/audio.js';
 import { CrtCanvasRenderer } from './engine/crtRenderer.js';
-import { BellglassGame } from './engine/game.js';
+// [BELLGLASS ARCHIVE] import { BellglassGame } from './engine/game.js';
+
+import { WarAudio } from './war/audio.js';
+import { IroncrownGame } from './war/game.js';
 
 const KEY_ACTIONS = {
   ArrowUp: 'move_n',
@@ -17,15 +21,17 @@ const KEY_ACTIONS = {
   KeyD: 'move_e',
   KeyJ: 'strike',
   KeyZ: 'strike',
+  KeyF: 'parry',
   KeyK: 'parry',
-  KeyX: 'parry',
   ShiftLeft: 'parry',
   ShiftRight: 'parry',
-  KeyL: 'dodge',
-  KeyC: 'dodge',
+  KeyB: 'volley',
+  KeyX: 'volley',
+  KeyL: 'pause_battle',
   Space: 'fork',
-  KeyF: 'lamp',
   KeyE: 'interact',
+  KeyR: 'rest',
+  KeyT: 'raven',
   Tab: 'ledger',
   KeyM: 'ledger',
   KeyN: 'new_game',
@@ -49,8 +55,10 @@ function bootstrap() {
   const audioBtn = document.getElementById('btn-audio');
   if (!canvas) return;
 
-  const audio = new BellAudio();
-  const game = new BellglassGame({
+  // [BELLGLASS ARCHIVE] const audio = new BellAudio();
+  // [BELLGLASS ARCHIVE] const game = new BellglassGame({ sfxCallback: (cue) => audio.play(cue) });
+  const audio = new WarAudio();
+  const game = new IroncrownGame({
     sfxCallback: (cue) => audio.play(cue),
   });
   const renderer = new CrtCanvasRenderer(canvas);
@@ -65,9 +73,11 @@ function bootstrap() {
     if (crtBtn) crtBtn.textContent = renderer.crtEnabled ? '[V] CRT GLOW: ON' : '[V] CRT GLOW: OFF';
     if (audioBtn) audioBtn.textContent = audio.muted ? '[`] SOUND: MUTED' : '[`] SOUND: ON';
     if (statusTag) {
-      const n = game.bellsRungCount();
-      statusTag.textContent = `${theme.label}  |  BELLS ${n}/5`;
-      audio.setMistCalmness(n);
+      // [BELLGLASS ARCHIVE] const n = game.bellsRungCount();
+      // [BELLGLASS ARCHIVE] statusTag.textContent = `${theme.label}  |  BELLS ${n}/5`;
+      // [BELLGLASS ARCHIVE] audio.setMistCalmness(n);
+      statusTag.textContent = `${theme.label}  |  HOLDS ${game.heldCount()}/9  |  DAY ${game.campaign.day}`;
+      audio.setWarTension(game.campaign.seasonIndex, game.screen === 'battle');
     }
     if (typeof document !== 'undefined' && document.documentElement?.style) {
       document.documentElement.style.setProperty('--phosphor-mist', theme.grades[1]);
@@ -96,11 +106,7 @@ function bootstrap() {
       return;
     }
 
-    if (
-      ev.code === 'Space' ||
-      ev.code === 'Tab' ||
-      ev.code.startsWith('Arrow')
-    ) {
+    if (ev.code === 'Space' || ev.code === 'Tab' || ev.code.startsWith('Arrow')) {
       ev.preventDefault();
     }
 
@@ -109,12 +115,18 @@ function bootstrap() {
     }
 
     if (ev.code === 'Enter') {
-      game.handleAction(game.screen === 'play' && !game.activeStory ? 'strike' : 'confirm');
+      // [BELLGLASS ARCHIVE] game.handleAction(game.screen === 'play' && !game.activeStory ? 'strike' : 'confirm');
+      game.handleAction('confirm');
       updateMetaTag();
       return;
     }
     if (ev.code === 'KeyH') {
-      game.handleAction(game.screen === 'title' || game.screen === 'help' ? 'help' : 'poultice');
+      game.handleAction('help');
+      updateMetaTag();
+      return;
+    }
+    if (ev.code === 'KeyC') {
+      game.handleAction(game.screen === 'battle' ? 'strike' : 'council');
       updateMetaTag();
       return;
     }
@@ -143,14 +155,11 @@ function bootstrap() {
       else if (cell.row < 27) game.handleAction('confirm');
     } else if (game.screen === 'help' || game.screen === 'ledger' || game.screen === 'victory' || game.screen === 'dead') {
       game.handleAction('confirm');
-    } else if (game.screen === 'play' && game.activeStory) {
-      game.handleAction('confirm');
     } else if (game.screen === 'dialogue') {
       if (cell.row === 35 || cell.row === 36) {
         const buf = game.renderBuffer();
         const rowStr = buf[cell.row].map(([ch]) => ch).join('');
         let picked = false;
-        // Scan backward from clicked column to find "[N]" marker for that choice
         for (let c = Math.min(cell.col, rowStr.length - 3); c >= 0; c--) {
           if (rowStr[c] === '[' && rowStr[c + 2] === ']' && rowStr[c + 1] >= '1' && rowStr[c + 1] <= '6') {
             game.handleAction(`choice_${rowStr[c + 1]}`);
@@ -162,6 +171,8 @@ function bootstrap() {
       } else {
         game.handleAction('cancel');
       }
+    } else if (game.screen === 'campaign' || game.screen === 'battle') {
+      game.handleCanvasClick(cell.row, cell.col);
     }
     updateMetaTag();
   });
@@ -188,7 +199,6 @@ function bootstrap() {
     });
   }
 
-  // Touch control bindings (shown only on coarse-pointer screens via CSS)
   document.querySelectorAll('[data-act]').forEach((btn) => {
     const trigger = (ev) => {
       ev.preventDefault();
@@ -209,10 +219,13 @@ function bootstrap() {
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
 
-    if (game.screen === 'play' && heldMoves.size > 0) {
+    if ((game.screen === 'campaign' || game.screen === 'battle') && heldMoves.size > 0) {
       const lastCode = Array.from(heldMoves).pop();
       const moveAct = KEY_ACTIONS[lastCode];
-      if (moveAct) game.handleAction(moveAct);
+      if (moveAct) {
+        game.handleAction(moveAct);
+        updateMetaTag();
+      }
     }
 
     game.update(dt);
