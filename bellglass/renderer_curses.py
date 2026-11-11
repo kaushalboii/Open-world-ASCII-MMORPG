@@ -54,7 +54,7 @@ def _setup_amber_pairs() -> Dict[int, int]:
     return attrs
 
 
-def _map_key(ch: int, screen: str) -> str:
+def _map_key(ch: int, screen: str, has_story: bool = False) -> str:
     if ch in (curses.KEY_UP, ord("w"), ord("W")):
         return "move_n"
     if ch in (curses.KEY_DOWN, ord("s"), ord("S")):
@@ -64,7 +64,7 @@ def _map_key(ch: int, screen: str) -> str:
     if ch in (curses.KEY_RIGHT, ord("d"), ord("D")):
         return "move_e"
     if ch in (10, 13, curses.KEY_ENTER):
-        return "confirm" if screen != "play" else "strike"
+        return "confirm" if (screen != "play" or has_story) else "strike"
     if ch in (ord("j"), ord("J"), ord("z"), ord("Z")):
         return "strike"
     if ch in (ord("k"), ord("K"), ord("x"), ord("X")):
@@ -113,7 +113,7 @@ def run_curses(game: BellglassGame) -> None:
                 ch = stdscr.getch()
                 if ch == -1:
                     break
-                action = _map_key(ch, game.screen)
+                action = _map_key(ch, game.screen, game.active_story is not None)
                 if action and not game.handle_action(action):
                     return
 

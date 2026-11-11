@@ -3,7 +3,15 @@
  * weather particles, and 104x38 Classic Amber CRT buffer generation.
  */
 
-import { BLADE_TIERS, LAMP_TIERS, NOTES_TEXT, buildDialogueNodes } from './narrative.js';
+import {
+  BLADE_TIERS,
+  LAMP_TIERS,
+  NOTES_TEXT,
+  STORY_BEATS,
+  buildDialogueNodes,
+  computeCurrentObjective,
+  wrapLines,
+} from './narrative.js';
 import {
   GRADE_BRIGHT,
   GRADE_DIM,
@@ -192,6 +200,7 @@ export class BellglassGame {
     this.shoalLitTimer = 0;
     this.stats = { slain: 0, parries: 0, steps: 0 };
     this.flags = {
+      met_hester: false,
       pulley_pulled: false,
       sluice_open: false,
       callum_quest: false,
@@ -204,11 +213,13 @@ export class BellglassGame {
       bell_foundry_rung: false,
       read_notes: [],
       shattered_salts: [],
+      story_seen: [],
     };
     this.lastBrazierPos = [24, 67];
     this.activeTargetId = null;
     this.activeDialogue = null;
     this.activeChoices = [];
+    this.activeStory = null;
     this.log = [
       'Tidemouth ferry pier. Thick estuary mist swallows the bell-posts.',
       'Old Hester watches from the pilings. Press [E] near her, or walk north.',
@@ -216,6 +227,9 @@ export class BellglassGame {
     this._snapCamera();
     this._updateVisited();
     this.screen = goTitle ? 'title' : 'play';
+    if (!goTitle) {
+      this._triggerStory('prologue', true);
+    }
   }
 
   recomputePlayerStats() {
@@ -319,6 +333,7 @@ export class BellglassGame {
 
   applySaveDict(data) {
     this.resetNewGame(false);
+    this.activeStory = null;
     const p = data.player || {};
     this.player.x = Number(p.x ?? 22);
     this.player.y = Number(p.y ?? 68);
@@ -392,9 +407,42 @@ export class BellglassGame {
       this.world.setTile(x, 35, ':', TILE_ROAD);
     }
     if (!silent) {
-      this.addLog('A distant counterweight drops—the High Foundry sluice gate in Redwick is raised.');
+      this.addLog('A distant counterweight drops--the High Foundry sluice gate in Redwick is raised.');
       this.emitSfx('gate');
+      this._triggerStory('milestone_sluice', true);
     }
+  }
+
+  _nearbyWindup() {
+    const { x: px, y: py } = this.player;
+    return this.enemies.some((e) => e.alive && e.state === 'windup' && Math.abs(e.x - px) + Math.abs(e.y - py) <= 6);
+  }
+
+  _triggerStory(beatId, allowInCombat = false) {
+    const beat = STORY_BEATS[beatId];
+    if (!beat) return;
+    const seen = Array.isArray(this.flags.story_seen) ? this.flags.story_seen : [];
+    if (seen.includes(beatId)) return;
+    seen.push(beatId);
+    this.flags.story_seen = seen;
+    this.addLog(beat.chronicle || `${beat.title}: ${beat.now}`);
+    if (allowInCombat || !this._nearbyWindup()) {
+      this.activeStory = beat;
+    }
+  }
+
+  _checkRegionStory() {
+    const reg = this.world.regionAt(this.player.x, this.player.y);
+    const beatMap = {
+      orchard: 'region_orchard',
+      nave: 'region_nave',
+      causeway: 'region_causeway',
+      redwick: 'region_redwick',
+      saltflats: 'region_saltflats',
+      foundry: 'region_foundry',
+    };
+    const beatId = beatMap[reg];
+    if (beatId) this._triggerStory(beatId, false);
   }
 
   _collectNearbyPickups() {
@@ -404,7 +452,9 @@ export class BellglassGame {
         item.collected = true;
         if (item.kind === 'clapper') {
           this.player.clappers.add(item.id);
-          this.addLog(`Found ${item.name}! Carry it to its parish belfry.`);
+          const bell = this.world.belfries.find((b) => b.clapperId === item.id);
+          const dest = bell ? bell.name : 'its parish belfry';
+          this.addLog(`Found ${item.name}! Carry it to ${dest} and press [E] to toll.`);
           this.emitSfx('pickup');
         } else if (item.kind === 'oil') {
           this.player.oil = Math.min(this.player.maxOil, this.player.oil + item.amount);
@@ -505,6 +555,11 @@ export class BellglassGame {
 
     if (this.screen === 'dialogue') {
       return this._handleDialogueInput(action);
+    }
+
+    if (this.activeStory) {
+      this.activeStory = null;
+      if (action === 'confirm' || action === 'cancel') return true;
     }
 
     if (action === 'quit') {
@@ -613,6 +668,7 @@ export class BellglassGame {
     this.emitSfx('step');
     this._updateVisited();
     this._collectNearbyPickups();
+    this._checkRegionStory();
   }
 
   _enemyAt(x, y) {
@@ -672,6 +728,7 @@ export class BellglassGame {
     }
     this._updateVisited();
     this._collectNearbyPickups();
+    this._checkRegionStory();
     this.emitSfx('step');
     if (steps === 0) {
       this.floaters.push({ x: this.player.x, y: this.player.y - 1, text: 'SLIP', ttl: 0.35 });
@@ -744,6 +801,7 @@ export class BellglassGame {
       this.player.clappers.add('clapper_foundry');
       this.addLog("The Fifth Master Clapper drops from Vane's belt! Carry it to the Dam Bell north.");
       this.emitSfx('bell');
+      this._triggerStory('milestone_vane', true);
     }
   }
 
@@ -850,7 +908,13 @@ export class BellglassGame {
     this.addLog(`*** ${b.name.toUpperCase()} RINGS OUT! Fog retreats across ${b.region.toUpperCase()}! ***`);
     if (this.bellsRungCount() >= 2 && !this.flags.sluice_open) this._openFoundrySluice();
     this.saveGame();
-    if (this.bellsRungCount() >= 5) this.screen = 'victory';
+    if (this.bellsRungCount() >= 5) {
+      this.activeStory = null;
+      this.screen = 'victory';
+    } else {
+      const nextObj = computeCurrentObjective(this);
+      this.addLog(`NEXT [${nextObj.chapter}]: ${nextObj.now}`);
+    }
   }
 
   _restAtBrazier(br) {
@@ -873,6 +937,7 @@ export class BellglassGame {
       return;
     }
     const node = this.dialogueNodes[nodeId];
+    if (node.onEnter) node.onEnter(this);
     this.activeDialogue = node;
     this.activeChoices = node.choices.filter((c) => !c.cond || c.cond(this));
     this.selectedChoice = 0;
@@ -1421,7 +1486,7 @@ export class BellglassGame {
     this._putStr(buf, 60, 6, '|___|', GRADE_LIT);
     this._putStr(buf, 60, 7, clapper, GRADE_BRIGHT);
     this._putStr(buf, 5, 9, 'T H E   D R O W N E D   P R O V I N C E  --  MARREN VALLEY', GRADE_LIT);
-    this._putStr(buf, 5, 10, 'Five sunken parish bells beneath salt mist and rising tide.', GRADE_DIM);
+    this._putStr(buf, 5, 10, 'Silenced by Magistrate Vane. Wake 5 Parish Bells to clear the fog.', GRADE_DIM);
 
     // 5. Rolling Multi-Depth Harbor Sea, Timber Jetty Wharf & Rigged Salvage Skiff (rows 18..25)
     for (let r = 18; r < 26; r++) {
@@ -1459,7 +1524,7 @@ export class BellglassGame {
     if (this.hasExistingSave) {
       this._putStr(buf, 9, 30, '[N] Start Fresh Crossing', GRADE_LIT);
     } else {
-      this._putStr(buf, 9, 30, 'Wake five bells to clear the valley fog.', GRADE_DIM);
+      this._putStr(buf, 9, 30, 'Talk Hester -> 5 Clappers (!) -> 5 Bells', GRADE_DIM);
     }
     this._putStr(buf, 9, 32, '[H] Tuning Fork & Field Manual', GRADE_LIT);
 
@@ -1560,13 +1625,23 @@ export class BellglassGame {
       this._putStr(buf, 4 + lx, 5 + ly, tag, GRADE_DIM);
     }
 
+    const obj = computeCurrentObjective(this);
     for (const b of this.world.belfries) {
       const bx = Math.max(0, Math.min(mapW - 1, Math.floor(b.x / 4)));
       const by = Math.max(0, Math.min(mapH - 1, Math.floor(b.y / 4)));
-      buf[5 + by][4 + bx] = [b.rung ? 'B' : 'b', b.rung ? GRADE_BRIGHT : GRADE_LIT];
+      const isObjBell = obj.target && Math.floor(obj.target[0] / 4) === bx && Math.floor(obj.target[1] / 4) === by;
+      buf[5 + by][4 + bx] = [b.rung ? 'B' : 'b', b.rung || isObjBell ? GRADE_BRIGHT : GRADE_LIT];
     }
-    const pmx = Math.max(0, Math.min(mapW - 1, Math.floor(this.player.x / 4)));
-    const pmy = Math.max(0, Math.min(mapH - 1, Math.floor(this.player.y / 4)));
+    if (obj.target) {
+      const ox = Math.max(0, Math.min(mapW - 1, Math.floor(obj.target[0] / 4)));
+      const oy = Math.max(0, Math.min(mapH - 1, Math.floor(obj.target[1] / 4)));
+      const existing = buf[5 + oy][4 + ox][0];
+      if (existing !== 'B' && existing !== 'b') {
+        buf[5 + oy][4 + ox] = ['?', GRADE_BRIGHT];
+      }
+    }
+    const pmx = maxCoord(mapW, this.player.x);
+    const pmy = maxCoord(mapH, this.player.y);
     buf[5 + pmy][4 + pmx] = ['@', GRADE_BRIGHT];
 
     const col = 67;
@@ -1586,16 +1661,23 @@ export class BellglassGame {
     this._putStr(buf, col, 20, `Brass : ${this.player.brass}   Poultices: ${this.player.poultices}`, GRADE_DIM);
     const ring = this.player.ringletEquipped ? 'Equipped (+15 HP)' : 'Hidden south of dike';
     this._putStr(buf, col, 21, `Relic : ${ring}`, GRADE_MIST);
-    this._putStr(buf, col, 23, `Felled: ${this.stats.slain}   Parries: ${this.stats.parries}`, GRADE_DIM);
-    this._putStr(buf, col, 24, `Steps : ${this.stats.steps}`, GRADE_MIST);
+    this._putStr(buf, col, 22, `Felled: ${this.stats.slain}  Parry: ${this.stats.parries}  Steps: ${this.stats.steps}`, GRADE_DIM);
+
+    this._putStr(buf, col, 24, `[ GOAL: ${obj.chapter} ]`, GRADE_BRIGHT);
+    const nowLines = wrapLines(`NOW: ${obj.now}`, 34).slice(0, 3);
+    nowLines.forEach((ln, idx) => this._putStr(buf, col, 25 + idx, ln, GRADE_LIT));
+    const nextRowStart = 25 + nowLines.length + 1;
+    const nextLines = wrapLines(`NEXT: ${obj.next}`, 34).slice(0, Math.max(1, 35 - nextRowStart));
+    nextLines.forEach((ln, idx) => this._putStr(buf, col, nextRowStart + idx, ln, GRADE_DIM));
 
     // Compass rose & legend bar
-    this._putStr(buf, 5, 29, '   N   ', GRADE_LIT);
-    this._putStr(buf, 5, 30, ' W-+-E ', GRADE_DIM);
-    this._putStr(buf, 5, 31, '   S   ', GRADE_LIT);
-    this._putStr(buf, 15, 29, 'Legend: [@] You   [B] Lit Bell   [b] Silent Belfry', GRADE_DIM);
-    this._putStr(buf, 15, 30, '        [=] Cobble / Timber Bridge   [#] Ruin Masonry', GRADE_MIST);
-    this._putStr(buf, 15, 32, '[Tab / Esc / Enter / Space] Close Parchment', GRADE_BRIGHT);
+    this._putStr(buf, 4, 29, '   N   ', GRADE_LIT);
+    this._putStr(buf, 4, 30, ' W-+-E ', GRADE_DIM);
+    this._putStr(buf, 4, 31, '   S   ', GRADE_LIT);
+    this._putStr(buf, 13, 29, 'Key: [@] You   [B] Lit Bell   [b] Silent Belfry', GRADE_DIM);
+    this._putStr(buf, 13, 30, '     [=] Road / Bridge   [#] Ruin Stone', GRADE_MIST);
+    this._putStr(buf, 13, 31, '     [?] Active Quest / Next Goal Waypoint', GRADE_BRIGHT);
+    this._putStr(buf, 13, 33, '[Tab / Esc / Enter / Space] Close Parchment', GRADE_BRIGHT);
   }
 
   _renderVictory(buf) {
@@ -2037,16 +2119,25 @@ export class BellglassGame {
       }
     }
 
+    if (this.screen === 'play' && this.activeStory) {
+      this._renderStoryDispatch(buf, pvr);
+    }
+
     if (this.screen === 'dialogue' && this.activeDialogue) {
       const line = this.activeDialogue.lineFn(this);
       this._putStr(buf, 1, LOG_TOP, fitLine(line, GRID_COLS - 2), GRADE_BRIGHT);
       this._renderDialogueChoices(buf);
     } else {
-      const recent = this.log.slice(-LOG_ROWS);
-      for (let idx = 0; idx < LOG_ROWS; idx++) {
+      const obj = computeCurrentObjective(this);
+      const nextPart = obj.next ? ` | NEXT: ${obj.next}` : '';
+      const guideLine = fitLine(`NOW [${obj.chapter}] ${obj.now}${nextPart}`, GRID_COLS - 2);
+      this._putStr(buf, 1, LOG_TOP, guideLine, GRADE_BRIGHT);
+
+      const recent = this.log.slice(-(LOG_ROWS - 1));
+      for (let idx = 0; idx < LOG_ROWS - 1; idx++) {
         if (idx < recent.length) {
-          const g = idx === recent.length - 1 ? GRADE_BRIGHT : idx === recent.length - 2 ? GRADE_DIM : GRADE_MIST;
-          this._putStr(buf, 1, LOG_TOP + idx, fitLine(recent[idx], GRID_COLS - 2), g);
+          const g = idx === recent.length - 1 ? GRADE_LIT : GRADE_DIM;
+          this._putStr(buf, 1, LOG_TOP + 1 + idx, fitLine(recent[idx], GRID_COLS - 2), g);
         }
       }
     }
@@ -2054,7 +2145,38 @@ export class BellglassGame {
     const hint =
       this.screen === 'dialogue'
         ? '[1-6] Choose   [W/S] Cycle   [Enter] Speak   [Esc] Step Back   (or click option)'
-        : '[WASD] Walk  [J] Strike  [K] Parry  [L] Step  [Space] Fork  [F] Lamp  [E] Act  [H] Heal  [Tab] Map';
+        : this.activeStory
+          ? '[WASD / Enter / Space / Click] Continue  |  [Tab] Map & Full Story Objectives'
+          : '[WASD] Walk  [J] Strike  [K] Parry  [L] Step  [Space] Fork  [F] Lamp  [E] Act  [H] Heal  [Tab] Map';
     this._putStr(buf, 1, HINT_ROW, fitLine(hint, GRID_COLS - 2), GRADE_MIST);
   }
+
+  _renderStoryDispatch(buf, pvr) {
+    const story = this.activeStory;
+    if (!story) return;
+    const w = 98;
+    const h = 10;
+    const left = 3;
+    const top = pvr <= 19 ? 21 : 2;
+    for (let r = top + 1; r < top + h - 1; r++) {
+      this._putStr(buf, left + 1, r, ' '.repeat(w - 2), GRADE_GHOST);
+    }
+    this._drawFrame(buf, left, top, w, h, `STORY CHRONICLE: ${story.title}`, GRADE_DIM, GRADE_BRIGHT);
+    story.lines.slice(0, 3).forEach((ln, idx) => {
+      this._putStr(buf, left + 3, top + 1 + idx, fitLine(ln, w - 6), GRADE_LIT);
+    });
+    this._putStr(buf, left + 3, top + 5, fitLine(`NOW : ${story.now}`, w - 6), GRADE_BRIGHT);
+    this._putStr(buf, left + 3, top + 6, fitLine(`NEXT: ${story.next}`, w - 6), GRADE_DIM);
+    this._putStr(
+      buf,
+      left + 3,
+      top + 8,
+      fitLine('[WASD / Enter / Space / Click] Dismiss & Continue   |   [Tab] Map & Guide', w - 6),
+      GRADE_BRIGHT
+    );
+  }
+}
+
+function maxCoord(mapDim, val) {
+  return Math.max(0, Math.min(mapDim - 1, Math.floor(val / 4)));
 }

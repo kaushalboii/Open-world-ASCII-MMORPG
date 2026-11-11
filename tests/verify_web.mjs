@@ -311,10 +311,38 @@ safeAtlasRenderer.draw(corruptBuf);
 renderer.draw(corruptBuf);
 globalThis.document = prevDoc;
 
+// Story narration dispatches + live Row 34 NOW/NEXT guidance progression
+const storyGame = new BellglassGame();
+storyGame.handleAction('confirm');
+assert.ok(storyGame.activeStory && storyGame.activeStory.id === 'prologue', 'Expected Prologue Story Dispatch on start');
+const prologueRender = storyGame.renderBuffer().map((r) => r.map(([c]) => c).join('')).join('\n');
+assert.ok(prologueRender.includes('PROLOGUE: SEVEN WINTERS OF FOG'), 'Prologue card must appear inside viewport');
+assert.ok(storyGame.renderBuffer()[34].map(([c]) => c).join('').includes('NOW [PROLOGUE]'), 'Row 34 must show NOW [PROLOGUE]');
+storyGame.handleAction('confirm');
+assert.equal(storyGame.activeStory, null, 'Confirm dismisses Story Dispatch cleanly');
+
+storyGame.player.x = 26;
+storyGame.player.y = 67;
+storyGame.handleAction('interact');
+assert.equal(storyGame.flags.met_hester, true);
+storyGame.handleAction('cancel');
+assert.ok(storyGame.renderBuffer()[34].map(([c]) => c).join('').includes('CH.I ORCHARD'));
+
+storyGame.player.x = 22;
+storyGame.player.y = 56;
+storyGame.handleAction('move_n');
+assert.ok(storyGame.activeStory && storyGame.activeStory.id === 'region_orchard');
+storyGame.handleAction('ledger');
+assert.equal(storyGame.screen, 'ledger');
+const ledgerRender = storyGame.renderBuffer().map((r) => r.map(([c]) => c).join('')).join('\n');
+assert.ok(ledgerRender.includes('[ GOAL: CH.I ORCHARD ]'), 'Ledger must display active chapter objective');
+assert.ok(ledgerRender.includes('[?]'), 'Ledger legend & map must show [?] objective marker');
+
 console.log(
   JSON.stringify({
     webReachability: 'PASS',
     simulationWalkthrough: 'PASS',
+    storyGuidance: 'PASS',
     worldGlyphsValidated: wm.width * wm.height,
     canvasFillTextCalls: fillTextCalls,
     atlasDrawImageCalls: drawImageCalls,

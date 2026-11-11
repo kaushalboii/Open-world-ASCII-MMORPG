@@ -24,6 +24,274 @@ class DialogueNode:
     on_enter: Optional[Callable[[Any], None]] = None
 
 
+STORY_BEATS: Dict[str, Dict[str, Any]] = {
+    "prologue": {
+        "id": "prologue",
+        "title": "PROLOGUE: SEVEN WINTERS OF FOG",
+        "lines": [
+            "Magistrate Vane drowned Marren Valley's five parish bells under Sealed Order No. 14,",
+            "leaving every flooded hamlet blinded in perpetual salt mist. You land as Oren",
+            "with a whale-oil lantern and a bronze tuning fork tuned to wake metal through silt.",
+        ],
+        "now": "Speak to Old Hester (H) [E] beside you, then walk North to Sunken Orchard.",
+        "next": "Find 5 stolen Clappers (!) and ring each silent Belfry (b) to scatter the fog.",
+        "chronicle": "Seven winters since Vane sank the 5 bells. Speak w/ Hester [E] -> Orchard North.",
+    },
+    "region_orchard": {
+        "id": "region_orchard",
+        "title": "CHAPTER I: THE SUNKEN ORCHARD",
+        "lines": [
+            "Flooded apple rows rot without noon bell-wind to scatter estuary damp. Salt veins",
+            "crust the western root-house where Orchard keepers hid the first parish clapper.",
+        ],
+        "now": "Search Root-House NW (18,29) for 1st Clapper (!); crack salt (%) w/ [Space] Fork.",
+        "next": "Carry it East to Orchard Belfry (58,34) and toll [E] to lift Orchard mist.",
+        "chronicle": "Entered Sunken Orchard: seek 1st Clapper (!) in NW Root-House.",
+    },
+    "region_nave": {
+        "id": "region_nave",
+        "title": "CHAPTER II: ST. JUDE'S FLOODED NAVE",
+        "lines": [
+            "Rain spears through shattered limestone arches. Prior Tomas keeps vigil beside the",
+            "choir chasm where Vane chained up the oak plank bridge from the northwest loft.",
+        ],
+        "now": "Speak w/ Prior Tomas [E], climb NW loft, pull Choir Winch (&) [E] at (83,12).",
+        "next": "Cross fallen plank East, fell Halberdier, take Clapper (!) -> ring Tenor Bell.",
+        "chronicle": "Entered St. Jude's Nave: pull NW loft winch (&) [E] to drop choir bridge.",
+    },
+    "region_causeway": {
+        "id": "region_causeway",
+        "title": "CHAPTER III: BRAMWELL CAUSEWAY",
+        "lines": [
+            "A battered limestone dike spans black marshes toward the Kiln-Town of Redwick.",
+            "Legend says sunken shoal-stones (~) south of the parapet hide an old sailor relic.",
+        ],
+        "now": "Walk East along dike to Redwick (or strike [Space] Fork south to reveal shoals).",
+        "next": "Toll any 2 Parish Bells to lift the northern High Foundry Sluice Gate.",
+        "chronicle": "Entered Bramwell Causeway: head East to Redwick, or [Space] Fork south waves.",
+    },
+    "region_redwick": {
+        "id": "region_redwick",
+        "title": "CHAPTER IV: KILN-TOWN OF REDWICK",
+        "lines": [
+            "Beehive coke ovens hiss against salt drizzle. Smith Marrow hammers brass at the",
+            "square anvil while Watchman Callum guards the heavy northern Foundry sluice gate.",
+        ],
+        "now": "Crack SE Soot-Warehouse (%) w/ [Space] for Clapper (!); temper gear w/ Marrow [E].",
+        "next": "Ring Redwick Bell (b), aid Pip south in Salt Flats, or pass Foundry Gate north.",
+        "chronicle": "Entered Kiln-Town Redwick: Marrow tempers gear [E]; 3rd Clapper lies SE.",
+    },
+    "region_saltflats": {
+        "id": "region_saltflats",
+        "title": "CHAPTER V: WRECK OF THE CORMORANT",
+        "lines": [
+            "Bleached salt flats ring the split timber ribs of the harbor dredger Cormorant.",
+            "Translucent Stalkers (S) vanish in brine haze unless held in beam light or [Space].",
+        ],
+        "now": "Rescue Apprentice Pip [E] by the wreck; take Aft Clapper (!) east [Keep Lamp Lit].",
+        "next": "Carry Clapper North to Breakwater Crane Bell (220,65) -> Toll [E].",
+        "chronicle": "Entered Low Sunder Flats: aid Apprentice Pip [E] & keep lamp lit for Stalkers.",
+    },
+    "region_foundry": {
+        "id": "region_foundry",
+        "title": "FINALE: THE HIGH FOUNDRY DAM",
+        "lines": [
+            "Riveted gantry cranes hang above molten slag channels. Magistrate Vane waits by the",
+            "dam crest in riveted diving brass, gripping the Fifth Master Clapper at his belt.",
+        ],
+        "now": "Avoid glowing slag (=/*), bronze-parry [K] Vane windups (!), defeat Vane (V)!",
+        "next": "Claim Fifth Clapper (!) from Vane -> Toll Master Dam Bell north for Estuary Dawn.",
+        "chronicle": "Entered High Foundry Dam: defeat Magistrate Vane (V) to claim 5th Clapper.",
+    },
+    "milestone_sluice": {
+        "id": "milestone_sluice",
+        "title": "THE FOUNDRY SLUICE RISES",
+        "lines": [
+            "Twin parish bells echo upriver in harmony. Far up in Redwick square, iron dam",
+            "counterweights thunder downward--lifting the locked sluice gate to High Foundry!",
+        ],
+        "now": "Pass North through Redwick gate (173,35) into Foundry, or sweep Salt Flats south.",
+        "next": "Gather remaining Clappers (!) and settle Magistrate Vane above the slag vats.",
+        "chronicle": "Two bells awakened the northern Foundry Sluice Gate in Redwick!",
+    },
+    "milestone_vane": {
+        "id": "milestone_vane",
+        "title": "THE FIFTH CLAPPER FALLS",
+        "lines": [
+            "Magistrate Vane's brass diving helm cracks beside the cooling gantry rails. From his",
+            "belt drops the Fifth Master Clapper--the last silent tongue holding Marren in fog.",
+        ],
+        "now": "Carry Fifth Master Clapper north to Master Dam Bell (213,9) and press [E]!",
+        "next": "All five parish bells singing together will sweep seven winters of fog to sea.",
+        "chronicle": "Magistrate Vane felled! Carry 5th Clapper north to Master Dam Bell [E].",
+    },
+}
+
+
+def _bearing_label(px: int, py: int, tx: int, ty: int) -> str:
+    dx = tx - px
+    dy = ty - py
+    dist = abs(dx) + abs(dy)
+    if dist <= 2:
+        return "HERE!"
+    ns = "N" if (dy < -2 and abs(dy) * 2 >= abs(dx)) else ("S" if (dy > 2 and abs(dy) * 2 >= abs(dx)) else "")
+    ew = "E" if (dx > 2 and abs(dx) * 2 >= abs(dy)) else ("W" if (dx < -2 and abs(dx) * 2 >= abs(dy)) else "")
+    direction = f"{ns}{ew}" or (("E" if dx > 0 else "W") if abs(dx) >= abs(dy) else ("S" if dy > 0 else "N"))
+    return f"{direction} {dist}"
+
+
+def wrap_lines(text: str, max_width: int) -> List[str]:
+    if not text or max_width <= 0:
+        return []
+    words = text.split()
+    out: List[str] = []
+    cur = ""
+    for w in words:
+        if not cur:
+            cur = w
+        elif len(cur) + 1 + len(w) <= max_width:
+            cur = f"{cur} {w}"
+        else:
+            out.append(cur)
+            cur = w
+    if cur:
+        out.append(cur)
+    return out
+
+
+def compute_current_objective(game: Any) -> Dict[str, Any]:
+    px, py = game.player.x, game.player.y
+    belfries = game.world.belfries
+    bells_rung = game.bells_rung_count()
+    cur_reg = game.world.region_at(px, py)
+
+    if bells_rung >= 5:
+        return {
+            "chapter": "DAWN",
+            "target": None,
+            "now": "All 5 Parish Bells sing across Marren Valley!",
+            "next": "Explore lit parishes or [Tab] Chart",
+        }
+
+    carried = sorted(
+        (b for b in belfries if not b.rung and b.clapper_id in game.player.clappers),
+        key=lambda b: (0 if b.region == cur_reg else 1, b.index),
+    )
+    if carried:
+        target_bell = carried[0]
+        br = _bearing_label(px, py, target_bell.x, target_bell.y)
+        if bells_rung == 1 and not game.flags.get("sluice_open"):
+            next_hint = "Lifts Redwick Sluice Gate"
+        elif bells_rung == 4:
+            next_hint = "5th bell clears valley fog!"
+        elif bells_rung == 0:
+            next_hint = "St. Jude's Nave NE"
+        else:
+            next_hint = "[Tab] Chart next bell"
+        return {
+            "chapter": f"BELL {bells_rung + 1}/5",
+            "target": (target_bell.x, target_bell.y),
+            "now": (
+                f"Press [E] NOW to toll {target_bell.name}!"
+                if br == "HERE!"
+                else f"Toll {target_bell.name} [E] ({br})"
+            ),
+            "next": next_hint,
+        }
+
+    boss = next((e for e in game.enemies if e.tpl.is_boss), None)
+    vane_alive = boss.alive if boss else (not game.flags.get("vane_defeated"))
+    bell_by_id = {b.id: b for b in belfries}
+
+    def region_chapter(reg: str) -> Optional[Dict[str, Any]]:
+        if reg == "orchard" and not bell_by_id["bell_orchard"].rung:
+            br = _bearing_label(px, py, 18, 29)
+            return {
+                "chapter": "CH.I ORCHARD",
+                "target": (18, 29),
+                "now": f"Root-House Clapper (!) ({br}) [Space] %",
+                "next": "Orchard Belfry (58,34) -> [E]",
+            }
+        if reg == "nave" and not bell_by_id["bell_nave"].rung:
+            if not game.flags.get("pulley_pulled"):
+                br = _bearing_label(px, py, 83, 12)
+                return {
+                    "chapter": "CH.II ST.JUDE",
+                    "target": (83, 12),
+                    "now": f"Choir Winch (&) [E] NW loft ({br})",
+                    "next": "Cross plank E -> Nave Clapper (!)",
+                }
+            br = _bearing_label(px, py, 99, 11)
+            return {
+                "chapter": "CH.II ST.JUDE",
+                "target": (99, 11),
+                "now": f"Nave Clapper (!) E of plank ({br})",
+                "next": "Toll Tenor -> Opens Foundry Sluice",
+            }
+        if reg == "redwick" and not bell_by_id["bell_redwick"].rung:
+            br = _bearing_label(px, py, 193, 60)
+            return {
+                "chapter": "CH.IV REDWICK",
+                "target": (193, 60),
+                "now": f"SE Warehouse (%) [Space] Clapper ({br})",
+                "next": "Ring Redwick Bell & Marrow [E]",
+            }
+        if reg == "saltflats" and not bell_by_id["bell_breakwater"].rung:
+            if not game.flags.get("pip_rescued"):
+                br = _bearing_label(px, py, 206, 77)
+                return {
+                    "chapter": "CH.V FLATS",
+                    "target": (206, 77),
+                    "now": f"Rescue Pip [E] at wreck ({br}) [Lamp Lit]",
+                    "next": "Aft Clapper (!) E -> Crane Bell",
+                }
+            br = _bearing_label(px, py, 224, 77)
+            return {
+                "chapter": "CH.V FLATS",
+                "target": (224, 77),
+                "now": f"Breakwater Clapper (!) E ({br}) [Space] S",
+                "next": "Toll Crane Bell (220,65) -> [E]",
+            }
+        if reg == "foundry" and not bell_by_id["bell_foundry"].rung and vane_alive:
+            bx = boss.x if boss else 212
+            by = boss.y if boss else 16
+            br = _bearing_label(px, py, bx, by)
+            return {
+                "chapter": "FINALE",
+                "target": (bx, by),
+                "now": f"Parry [K] & fell Magistrate Vane ({br})",
+                "next": "5th Clapper -> Toll Dam Bell (213,9)",
+            }
+        return None
+
+    if cur_reg == "tidemouth" and not game.flags.get("met_hester") and game.stats.get("steps", 0) < 6:
+        br = _bearing_label(px, py, 27, 67)
+        return {
+            "chapter": "PROLOGUE",
+            "target": (27, 67),
+            "now": f"Speak Old Hester (H) [E] ({br})",
+            "next": "Find 1st Clapper (!) in Orchard NW",
+        }
+
+    local_obj = region_chapter(cur_reg)
+    if local_obj:
+        return local_obj
+
+    for r in ("orchard", "nave", "redwick", "saltflats", "foundry"):
+        if r == "foundry" and not game.flags.get("sluice_open") and bells_rung < 2:
+            continue
+        step = region_chapter(r)
+        if step:
+            return step
+
+    return region_chapter("foundry") or {
+        "chapter": "MARREN",
+        "target": (58, 34),
+        "now": "Seek silent Parish Belfries (b) on [Tab] Parchment",
+        "next": "Ring all 5 bells to break Sealed Order No. 14",
+    }
+
+
 NOTES_TEXT: Dict[str, tuple[str, str]] = {
     "note_pier": (
         "TIDEMOUTH MILESTONE (CHISELED)",
@@ -134,6 +402,12 @@ def _buy_oil(game: Any) -> None:
         game.emit_sfx("heal")
 
 
+def _on_enter_hester(game: Any) -> None:
+    if not game.flags.get("met_hester"):
+        game.flags["met_hester"] = True
+        game.add_log("Hester: 'Walk North to Orchard Root-House for the 1st Clapper (!), Oren.'")
+
+
 def build_dialogue_nodes() -> Dict[str, DialogueNode]:
     """Return full NPC dialogue graph indexed by node id."""
     return {
@@ -141,6 +415,7 @@ def build_dialogue_nodes() -> Dict[str, DialogueNode]:
             id="hester_root",
             speaker="Old Hester",
             line_fn=_hester_greeting,
+            on_enter=_on_enter_hester,
             choices=[
                 DialogueChoice("Five parish clappers", "hester_clappers"),
                 DialogueChoice("Breaking salt crystals", "hester_fork"),

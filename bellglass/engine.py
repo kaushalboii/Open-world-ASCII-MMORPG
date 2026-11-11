@@ -14,8 +14,11 @@ from bellglass.narrative import (
     BLADE_TIERS,
     LAMP_TIERS,
     NOTES_TEXT,
+    STORY_BEATS,
     DialogueNode,
     build_dialogue_nodes,
+    compute_current_objective,
+    wrap_lines,
 )
 from bellglass.palette import (
     GRADE_BRIGHT,
@@ -214,6 +217,8 @@ class BellglassGame:
         self.log: List[str] = []
         self.active_dialogue: Optional[DialogueNode] = None
         self.active_choices: List[Any] = []
+        self.active_story: Optional[Dict[str, Any]] = None
+        self.active_choices: List[Any] = []
         self.selected_choice: int = 0
         self.last_brazier_pos: Tuple[int, int] = (24, 67)
         self.active_target_id: Optional[str] = None
@@ -262,6 +267,7 @@ class BellglassGame:
         self.shoal_lit_timer = 0.0
         self.stats = {"slain": 0, "parries": 0, "steps": 0}
         self.flags = {
+            "met_hester": False,
             "pulley_pulled": False,
             "sluice_open": False,
             "callum_quest": False,
@@ -273,11 +279,13 @@ class BellglassGame:
             "bell_breakwater_rung": False,
             "bell_foundry_rung": False,
             "read_notes": [],
+            "story_seen": [],
         }
         self.last_brazier_pos = (24, 67)
         self.active_target_id = None
         self.active_dialogue = None
         self.active_choices = []
+        self.active_story = None
         self.log = [
             "Tidemouth ferry pier. Thick estuary mist swallows the bell-posts.",
             "Old Hester watches from the pilings. Press [E] near her, or walk north.",
@@ -285,6 +293,8 @@ class BellglassGame:
         self._snap_camera()
         self._update_visited()
         self.screen = "title" if go_title else "play"
+        if not go_title:
+            self._trigger_story("prologue", allow_in_combat=True)
 
     def _snap_camera(self) -> None:
         half_w = GRID_COLS // 2
@@ -371,6 +381,7 @@ class BellglassGame:
 
     def apply_save_dict(self, data: Dict[str, Any]) -> None:
         self.reset_new_game(go_title=False)
+        self.active_story = None
         p = data.get("player", {})
         self.player.x = int(p.get("x", 22))
         self.player.y = int(p.get("y", 68))
@@ -443,8 +454,41 @@ class BellglassGame:
         for x in (172, 173, 174):
             self.world.set_tile(x, 35, ":", TILE_ROAD)
         if not silent:
-            self.add_log("A distant counterweight drops—the High Foundry sluice gate in Redwick is raised.")
+            self.add_log("A distant counterweight drops--the High Foundry sluice gate in Redwick is raised.")
             self.emit_sfx("gate")
+            self._trigger_story("milestone_sluice", allow_in_combat=True)
+
+    def _nearby_windup(self) -> bool:
+        px, py = self.player.x, self.player.y
+        return any(
+            e.alive and e.state == "windup" and abs(e.x - px) + abs(e.y - py) <= 6
+            for e in self.enemies
+        )
+
+    def _trigger_story(self, beat_id: str, allow_in_combat: bool = False) -> None:
+        beat = STORY_BEATS.get(beat_id)
+        if not beat:
+            return
+        seen = self.flags.setdefault("story_seen", [])
+        if beat_id in seen:
+            return
+        seen.append(beat_id)
+        self.add_log(beat.get("chronicle") or f"{beat['title']}: {beat['now']}")
+        if allow_in_combat or not self._nearby_windup():
+            self.active_story = beat
+
+    def _check_region_story(self) -> None:
+        reg = self.world.region_at(self.player.x, self.player.y)
+        beat_id = {
+            "orchard": "region_orchard",
+            "nave": "region_nave",
+            "causeway": "region_causeway",
+            "redwick": "region_redwick",
+            "saltflats": "region_saltflats",
+            "foundry": "region_foundry",
+        }.get(reg)
+        if beat_id:
+            self._trigger_story(beat_id, allow_in_combat=False)
 
     def _collect_nearby_pickups(self) -> None:
         for item in self.world.pickups:
@@ -454,7 +498,9 @@ class BellglassGame:
                 item.collected = True
                 if item.kind == "clapper":
                     self.player.clappers.add(item.id)
-                    self.add_log(f"Found {item.name}! Carry it to its parish belfry.")
+                    bell = next((b for b in self.world.belfries if b.clapper_id == item.id), None)
+                    dest = bell.name if bell else "its parish belfry"
+                    self.add_log(f"Found {item.name}! Carry it to {dest} and press [E] to toll.")
                     self.emit_sfx("pickup")
                 elif item.kind == "oil":
                     self.player.oil = min(self.player.max_oil, self.player.oil + item.amount)
@@ -547,6 +593,11 @@ class BellglassGame:
 
         if self.screen == "dialogue":
             return self._handle_dialogue_input(action)
+
+        if self.active_story is not None:
+            self.active_story = None
+            if action in ("confirm", "cancel"):
+                return True
 
         # Playing actions
         if action == "quit":
@@ -644,6 +695,7 @@ class BellglassGame:
         self.emit_sfx("step")
         self._update_visited()
         self._collect_nearby_pickups()
+        self._check_region_story()
 
     def _enemy_at(self, x: int, y: int) -> Optional[EnemyRuntime]:
         for e in self.enemies:
@@ -697,6 +749,7 @@ class BellglassGame:
                 steps += 1
         self._update_visited()
         self._collect_nearby_pickups()
+        self._check_region_story()
         self.emit_sfx("step")
         if steps == 0:
             self.floaters.append(FloatingText(self.player.x, self.player.y - 1, "SLIP", 0.35))
@@ -756,6 +809,7 @@ class BellglassGame:
             self.player.clappers.add("clapper_foundry")
             self.add_log("The Fifth Master Clapper drops from Vane's belt! Carry it to the Dam Bell north.")
             self.emit_sfx("bell")
+            self._trigger_story("milestone_vane", allow_in_combat=True)
 
     def _perform_tuning_fork(self) -> None:
         if self.player.fork_timer > 0.0 or self.player.stamina < 28.0:
@@ -854,7 +908,11 @@ class BellglassGame:
 
         self.save_game()
         if self.bells_rung_count() >= 5:
+            self.active_story = None
             self.screen = "victory"
+        else:
+            next_obj = compute_current_objective(self)
+            self.add_log(f"NEXT [{next_obj['chapter']}]: {next_obj['now']}")
 
     def _rest_at_brazier(self, br: Brazier) -> None:
         self.last_brazier_pos = (br.x, br.y + 1 if self.world.is_walkable(br.x, br.y + 1) else br.y)
@@ -1390,7 +1448,7 @@ class BellglassGame:
         self._put_str(buf, 60, 6, "|___|", GRADE_LIT)
         self._put_str(buf, 60, 7, clapper, GRADE_BRIGHT)
         self._put_str(buf, 5, 9, "T H E   D R O W N E D   P R O V I N C E  --  MARREN VALLEY", GRADE_LIT)
-        self._put_str(buf, 5, 10, "Five sunken parish bells beneath salt mist and rising tide.", GRADE_DIM)
+        self._put_str(buf, 5, 10, "Silenced by Magistrate Vane. Wake 5 Parish Bells to clear the fog.", GRADE_DIM)
 
         # 5. Rolling Multi-Depth Harbor Sea, Timber Jetty Wharf & Rigged Salvage Skiff (rows 18..25)
         for r in range(18, 26):
@@ -1421,7 +1479,7 @@ class BellglassGame:
         if self.has_existing_save:
             self._put_str(buf, 9, 30, "[N] Start Fresh Crossing", GRADE_LIT)
         else:
-            self._put_str(buf, 9, 30, "Wake five bells to clear the valley fog.", GRADE_DIM)
+            self._put_str(buf, 9, 30, "Talk Hester -> 5 Clappers (!) -> 5 Bells", GRADE_DIM)
         self._put_str(buf, 9, 32, "[H] Tuning Fork & Field Manual", GRADE_LIT)
         self._put_str(buf, 9, 33, "[Q] Quit Console", GRADE_MIST)
 
@@ -1500,10 +1558,17 @@ class BellglassGame:
         ]:
             self._put_str(buf, 4 + lx, 5 + ly, tag, GRADE_DIM)
 
+        obj = compute_current_objective(self)
         for b in self.world.belfries:
             bx = max(0, min(map_w - 1, b.x // 4))
             by = max(0, min(map_h - 1, b.y // 4))
-            buf[5 + by][4 + bx] = ("B" if b.rung else "b", GRADE_BRIGHT if b.rung else GRADE_LIT)
+            is_obj_bell = bool(obj["target"]) and (obj["target"][0] // 4 == bx and obj["target"][1] // 4 == by)
+            buf[5 + by][4 + bx] = ("B" if b.rung else "b", GRADE_BRIGHT if (b.rung or is_obj_bell) else GRADE_LIT)
+        if obj["target"]:
+            ox = max(0, min(map_w - 1, obj["target"][0] // 4))
+            oy = max(0, min(map_h - 1, obj["target"][1] // 4))
+            if buf[5 + oy][4 + ox][0] not in ("B", "b"):
+                buf[5 + oy][4 + ox] = ("?", GRADE_BRIGHT)
         pmx = max(0, min(map_w - 1, self.player.x // 4))
         pmy = max(0, min(map_h - 1, self.player.y // 4))
         buf[5 + pmy][4 + pmx] = ("@", GRADE_BRIGHT)
@@ -1524,15 +1589,24 @@ class BellglassGame:
         self._put_str(buf, col, 20, f"Brass : {self.player.brass}   Poultices: {self.player.poultices}", GRADE_DIM)
         ring = "Equipped (+15 HP)" if self.player.ringlet_equipped else "Hidden south of dike"
         self._put_str(buf, col, 21, f"Relic : {ring}", GRADE_MIST)
-        self._put_str(buf, col, 23, f"Felled: {self.stats['slain']}   Parries: {self.stats['parries']}", GRADE_DIM)
-        self._put_str(buf, col, 24, f"Steps : {self.stats['steps']}", GRADE_MIST)
+        self._put_str(buf, col, 22, f"Felled: {self.stats['slain']}  Parry: {self.stats['parries']}  Steps: {self.stats['steps']}", GRADE_DIM)
 
-        self._put_str(buf, 5, 29, "   N   ", GRADE_LIT)
-        self._put_str(buf, 5, 30, " W-+-E ", GRADE_DIM)
-        self._put_str(buf, 5, 31, "   S   ", GRADE_LIT)
-        self._put_str(buf, 15, 29, "Legend: [@] You   [B] Bell Rung   [b] Silent Belfry", GRADE_DIM)
-        self._put_str(buf, 15, 30, "        [=] Cobble / Timber Bridge   [#] Ruin Masonry", GRADE_MIST)
-        self._put_str(buf, 15, 32, "[Tab / Esc / Enter] Close Parchment", GRADE_BRIGHT)
+        self._put_str(buf, col, 24, f"[ GOAL: {obj['chapter']} ]", GRADE_BRIGHT)
+        now_lines = wrap_lines(f"NOW: {obj['now']}", 34)[:3]
+        for idx, ln in enumerate(now_lines):
+            self._put_str(buf, col, 25 + idx, ln, GRADE_LIT)
+        next_start = 25 + len(now_lines) + 1
+        next_lines = wrap_lines(f"NEXT: {obj['next']}", 34)[: max(1, 35 - next_start)]
+        for idx, ln in enumerate(next_lines):
+            self._put_str(buf, col, next_start + idx, ln, GRADE_DIM)
+
+        self._put_str(buf, 4, 29, "   N   ", GRADE_LIT)
+        self._put_str(buf, 4, 30, " W-+-E ", GRADE_DIM)
+        self._put_str(buf, 4, 31, "   S   ", GRADE_LIT)
+        self._put_str(buf, 13, 29, "Key: [@] You   [B] Lit Bell   [b] Silent Belfry", GRADE_DIM)
+        self._put_str(buf, 13, 30, "     [=] Road / Bridge   [#] Ruin Stone", GRADE_MIST)
+        self._put_str(buf, 13, 31, "     [?] Active Quest / Next Goal Waypoint", GRADE_BRIGHT)
+        self._put_str(buf, 13, 33, "[Tab / Esc / Enter] Close Parchment", GRADE_BRIGHT)
 
     def _render_victory(self, buf: List[List[Tuple[str, int]]]) -> None:
         self._draw_frame(buf, 4, 3, GRID_COLS - 8, 30, "ESTUARY DAWN  --  FIVE BELLS AWAKENED", GRADE_DIM, GRADE_BRIGHT)
@@ -1951,22 +2025,53 @@ class BellglassGame:
             else:
                 self._put_str(buf, 2, VIEW_BOTTOM, "--[ CHRONICLE ]--", GRADE_LIT)
 
-        # Rows 34..36: Inline Dialogue OR 3-Line Literary Log
+        if self.screen == "play" and self.active_story is not None:
+            self._render_story_dispatch(buf, pvr)
+
+        # Rows 34..36: Inline Dialogue OR Live NOW/NEXT Objective + 2-Line Chronicle Log
         if self.screen == "dialogue" and self.active_dialogue is not None:
             line = self.active_dialogue.line_fn(self)
             self._put_str(buf, 1, LOG_TOP, fit_line(line, GRID_COLS - 2), GRADE_BRIGHT)
             self._render_dialogue_choices(buf)
         else:
-            recent = self.log[-LOG_ROWS:]
-            for idx in range(LOG_ROWS):
+            obj = compute_current_objective(self)
+            next_part = f" | NEXT: {obj['next']}" if obj.get("next") else ""
+            guide_line = fit_line(f"NOW [{obj['chapter']}] {obj['now']}{next_part}", GRID_COLS - 2)
+            self._put_str(buf, 1, LOG_TOP, guide_line, GRADE_BRIGHT)
+
+            recent = self.log[-(LOG_ROWS - 1) :]
+            for idx in range(LOG_ROWS - 1):
                 if idx < len(recent):
-                    grade = GRADE_BRIGHT if idx == len(recent) - 1 else (GRADE_DIM if idx == len(recent) - 2 else GRADE_MIST)
-                    self._put_str(buf, 1, LOG_TOP + idx, fit_line(recent[idx], GRID_COLS - 2), grade)
+                    grade = GRADE_LIT if idx == len(recent) - 1 else GRADE_DIM
+                    self._put_str(buf, 1, LOG_TOP + 1 + idx, fit_line(recent[idx], GRID_COLS - 2), grade)
 
         # Row 37: Keybind whisper
         if self.screen == "dialogue":
             hint = "[1-6] Choose   [W/S] Cycle   [Enter] Speak   [Esc] Step Back"
+        elif self.active_story is not None:
+            hint = "[WASD / Enter / Space] Continue  |  [Tab] Map & Full Story Objectives"
         else:
             hint = "[WASD] Walk  [J] Strike  [K] Parry  [L] Step  [Space] Fork  [F] Lamp  [E] Act  [H] Heal  [Tab] Map"
         self._put_str(buf, 1, HINT_ROW, fit_line(hint, GRID_COLS - 2), GRADE_MIST)
         return buf
+
+    def _render_story_dispatch(self, buf: List[List[Tuple[str, int]]], pvr: int) -> None:
+        story = self.active_story
+        if not story:
+            return
+        w, h, left = 98, 10, 3
+        top = 21 if pvr <= 19 else 2
+        for r in range(top + 1, top + h - 1):
+            self._put_str(buf, left + 1, r, " " * (w - 2), GRADE_GHOST)
+        self._draw_frame(buf, left, top, w, h, f"STORY CHRONICLE: {story['title']}", GRADE_DIM, GRADE_BRIGHT)
+        for idx, ln in enumerate(story["lines"][:3]):
+            self._put_str(buf, left + 3, top + 1 + idx, fit_line(ln, w - 6), GRADE_LIT)
+        self._put_str(buf, left + 3, top + 5, fit_line(f"NOW : {story['now']}", w - 6), GRADE_BRIGHT)
+        self._put_str(buf, left + 3, top + 6, fit_line(f"NEXT: {story['next']}", w - 6), GRADE_DIM)
+        self._put_str(
+            buf,
+            left + 3,
+            top + 8,
+            fit_line("[WASD / Enter / Space] Dismiss & Continue   |   [Tab] Map & Guide", w - 6),
+            GRADE_BRIGHT,
+        )

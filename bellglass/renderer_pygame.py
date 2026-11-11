@@ -68,7 +68,7 @@ def run_pygame(game: BellglassGame) -> None:
             if ev.type == pygame.QUIT:
                 running = False
             elif ev.type == pygame.KEYDOWN:
-                action = _map_pygame_key(ev.key, game.screen)
+                action = _map_pygame_key(ev.key, game.screen, game.active_story is not None)
                 if action and not game.handle_action(action):
                     running = False
 
@@ -107,7 +107,7 @@ def run_pygame(game: BellglassGame) -> None:
     pygame.quit()
 
 
-def _map_pygame_key(key: int, screen: str) -> str:
+def _map_pygame_key(key: int, screen: str, has_story: bool = False) -> str:
     import pygame
 
     mapping = {
@@ -142,7 +142,7 @@ def _map_pygame_key(key: int, screen: str) -> str:
         pygame.K_6: "choice_6",
     }
     if key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-        return "confirm" if screen != "play" else "strike"
+        return "confirm" if (screen != "play" or has_story) else "strike"
     if key == pygame.K_h:
         return "help" if screen in ("title", "help") else "poultice"
     return mapping.get(key, "")

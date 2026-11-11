@@ -109,7 +109,7 @@ function bootstrap() {
     }
 
     if (ev.code === 'Enter') {
-      game.handleAction(game.screen === 'play' ? 'strike' : 'confirm');
+      game.handleAction(game.screen === 'play' && !game.activeStory ? 'strike' : 'confirm');
       updateMetaTag();
       return;
     }
@@ -142,6 +142,8 @@ function bootstrap() {
       else if (cell.row === 32) game.handleAction('help');
       else if (cell.row < 27) game.handleAction('confirm');
     } else if (game.screen === 'help' || game.screen === 'ledger' || game.screen === 'victory' || game.screen === 'dead') {
+      game.handleAction('confirm');
+    } else if (game.screen === 'play' && game.activeStory) {
       game.handleAction('confirm');
     } else if (game.screen === 'dialogue') {
       if (cell.row === 35 || cell.row === 36) {

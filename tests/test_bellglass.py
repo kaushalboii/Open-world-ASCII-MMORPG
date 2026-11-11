@@ -242,6 +242,45 @@ class BellglassTests(unittest.TestCase):
                         self.assertEqual(len(ch), 1)
                         self.assertTrue(32 <= ord(ch) <= 126)
 
+    def test_in_place_story_narration_and_live_objective_progression(self) -> None:
+        game = BellglassGame(save_path=None)
+        game.handle_action("confirm")
+        self.assertIsNotNone(game.active_story)
+        self.assertEqual(game.active_story["id"], "prologue")
+
+        # Prologue Story Chronicle renders right inside the live viewport + Row 34 NOW/NEXT guidance
+        buf = game.render_buffer()
+        joined = "\n".join("".join(ch for ch, _ in row) for row in buf)
+        self.assertIn("PROLOGUE: SEVEN WINTERS OF FOG", joined)
+        row34 = "".join(ch for ch, _ in buf[34])
+        self.assertIn("NOW [PROLOGUE]", row34)
+        self.assertIn("NEXT:", row34)
+
+        # Pressing confirm dismisses Story Dispatch cleanly without swinging sword
+        game.handle_action("confirm")
+        self.assertIsNone(game.active_story)
+
+        # Talking to Old Hester advances objective to Sunken Orchard Clapper
+        game.player.x, game.player.y = 26, 67
+        game.handle_action("interact")
+        self.assertTrue(game.flags.get("met_hester"))
+        game.handle_action("cancel")
+        row34_orchard = "".join(ch for ch, _ in game.render_buffer()[34])
+        self.assertIn("CH.I ORCHARD", row34_orchard)
+
+        # Walking into Orchard triggers Chapter I dispatch once
+        game.player.x, game.player.y = 22, 56
+        game.handle_action("move_n")
+        self.assertIsNotNone(game.active_story)
+        self.assertEqual(game.active_story["id"], "region_orchard")
+
+        # Ledger displays active objective & [?] waypoint marker
+        game.handle_action("ledger")
+        self.assertEqual(game.screen, "ledger")
+        ledger_txt = "\n".join("".join(ch for ch, _ in row) for row in game.render_buffer())
+        self.assertIn("[ GOAL: CH.I ORCHARD ]", ledger_txt)
+        self.assertIn("[?]", ledger_txt)
+
 
 if __name__ == "__main__":
     unittest.main()
