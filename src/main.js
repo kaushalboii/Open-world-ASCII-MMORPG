@@ -50,6 +50,7 @@ const MOVE_CODES = new Set(['ArrowUp', 'KeyW', 'ArrowDown', 'KeyS', 'ArrowLeft',
 function bootstrap() {
   const canvas = document.getElementById('crt');
   const statusTag = document.getElementById('crt-status');
+  const colorBtn = document.getElementById('btn-color');
   const phosphorBtn = document.getElementById('btn-phosphor');
   const crtBtn = document.getElementById('btn-crt');
   const audioBtn = document.getElementById('btn-audio');
@@ -66,7 +67,17 @@ function bootstrap() {
 
   const updateMetaTag = () => {
     const theme = renderer.getTheme();
-    if (phosphorBtn) {
+    if (colorBtn) {
+      colorBtn.textContent = renderer.colorEnabled ? '[O] COLOR: FULL' : '[O] COLOR: MONO';
+    }
+    if (colorBtn) {
+    colorBtn.addEventListener('click', () => {
+      audio.unlock();
+      renderer.toggleColor();
+      updateMetaTag();
+    });
+  }
+  if (phosphorBtn) {
       const shortName = theme.id === 'amber' ? 'AMBER' : theme.id === 'verdigris' ? 'GREEN' : 'IVORY';
       phosphorBtn.textContent = `[P] PHOSPHOR: ${shortName}`;
     }
@@ -76,13 +87,15 @@ function bootstrap() {
       // [BELLGLASS ARCHIVE] const n = game.bellsRungCount();
       // [BELLGLASS ARCHIVE] statusTag.textContent = `${theme.label}  |  BELLS ${n}/5`;
       // [BELLGLASS ARCHIVE] audio.setMistCalmness(n);
-      statusTag.textContent = `${theme.label}  |  HOLDS ${game.heldCount()}/9  |  DAY ${game.campaign.day}`;
+      const modeLabel = renderer.colorEnabled ? 'FULL COLOR' : theme.label;
+      statusTag.textContent = `${modeLabel}  |  HOLDS ${game.heldCount()}/9  |  DAY ${game.campaign.day}`;
       audio.setWarTension(game.campaign.seasonIndex, game.screen === 'battle');
     }
     if (typeof document !== 'undefined' && document.documentElement?.style) {
-      document.documentElement.style.setProperty('--phosphor-mist', theme.grades[1]);
-      document.documentElement.style.setProperty('--phosphor-dim', theme.grades[2]);
-      document.documentElement.style.setProperty('--phosphor-lit', theme.grades[3]);
+      document.documentElement.style.setProperty('--crt-bg', renderer.colorEnabled ? '#06070a' : theme.bg);
+      document.documentElement.style.setProperty('--phosphor-mist', renderer.colorEnabled ? '#7c8ba1' : theme.grades[1]);
+      document.documentElement.style.setProperty('--phosphor-dim', renderer.colorEnabled ? '#c2cddb' : theme.grades[2]);
+      document.documentElement.style.setProperty('--phosphor-lit', renderer.colorEnabled ? '#ffb53e' : theme.grades[3]);
     }
   };
 
@@ -90,6 +103,11 @@ function bootstrap() {
 
   window.addEventListener('keydown', (ev) => {
     audio.unlock();
+    if (ev.code === 'KeyO') {
+      renderer.toggleColor();
+      updateMetaTag();
+      return;
+    }
     if (ev.code === 'KeyP') {
       renderer.cyclePhosphor();
       updateMetaTag();
@@ -182,6 +200,13 @@ function bootstrap() {
     updateMetaTag();
   });
 
+  if (colorBtn) {
+    colorBtn.addEventListener('click', () => {
+      audio.unlock();
+      renderer.toggleColor();
+      updateMetaTag();
+    });
+  }
   if (phosphorBtn) {
     phosphorBtn.addEventListener('click', () => {
       audio.unlock();

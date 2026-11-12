@@ -11,8 +11,27 @@ import {
   GRADE_GHOST,
   GRADE_LIT,
   GRADE_MIST,
+  TONE_AMBER,
+  TONE_CRIMSON,
+  TONE_FIRE,
+  TONE_FOREST,
+  TONE_PARCHMENT,
+  TONE_RIVER,
+  TONE_SNOW,
+  TONE_STEEL,
+  TONE_STONE,
+  TONE_VIOLET,
+  TONE_WOOD,
   sanitizeGlyph,
 } from '../engine/palette.js';
+
+export function houseToneId(houseId) {
+  if (houseId === 'dray') return TONE_VIOLET;
+  if (houseId === 'vance') return TONE_FOREST;
+  if (houseId === 'locke') return TONE_STEEL;
+  if (houseId === 'thorne' || houseId === 'brack') return TONE_CRIMSON;
+  return TONE_AMBER;
+}
 import {
   ensureHalftoneCache,
   getBakedCampaignHorse,
@@ -72,6 +91,8 @@ export function stampSprite(buf, x, y, lines, options = {}) {
     mirror = false,
     rowGrades = null,
     tintOverride = null,
+    tone = TONE_AMBER,
+    highlightTone = null,
   } = options;
   const rows = buf.length;
   const cols = rows > 0 ? buf[0].length : 0;
@@ -93,7 +114,9 @@ export function stampSprite(buf, x, y, lines, options = {}) {
       if (ch === ' ') continue;
       let g = tintOverride != null ? tintOverride : gradeForArtGlyph(ch, rGrade, highlightChars);
       g = Math.max(GRADE_GHOST, Math.min(GRADE_BRIGHT, g));
-      buf[ty][tx] = [ch, g];
+      const isHi = highlightChars && highlightChars.has(ch);
+      const cellTone = isHi && highlightTone != null ? highlightTone : tone;
+      buf[ty][tx] = [ch, g, cellTone];
     }
   }
 }
@@ -206,15 +229,15 @@ export function renderShadedSkyAndPeaks(buf, x0, y0, width, height, scrollX, clo
       if (r >= Math.floor(ridgeH) && r <= Math.min(height - 1, Math.floor(lowerSlope))) {
         const isCrest = r === Math.floor(ridgeH);
         const ch = isCrest ? '^' : (wx + r) % 4 === 0 ? '+' : (wx % 2 === 0 ? '=' : ':');
-        buf[sy][sx] = [ch, isCrest ? GRADE_DIM : GRADE_GHOST];
+        buf[sy][sx] = [ch, isCrest ? GRADE_DIM : GRADE_GHOST, isCrest ? TONE_SNOW : TONE_STONE];
       } else {
         const cloud = Math.sin(wx * 0.11 - clock * 0.35) + Math.cos(r * 1.5 + wx * 0.04);
         if (cloud > 1.55) {
-          buf[sy][sx] = ['.', GRADE_GHOST];
+          buf[sy][sx] = ['.', GRADE_GHOST, TONE_RIVER];
         } else if (seasonId === 'winter' && ((c * 17 + Math.floor(clock * 6 + r * 5)) % 67 === 0)) {
-          buf[sy][sx] = ['*', GRADE_DIM];
+          buf[sy][sx] = ['*', GRADE_DIM, TONE_SNOW];
         } else if (seasonId === 'autumn' && ((c * 13 + Math.floor(clock * 9 + r * 7)) % 71 === 0)) {
-          buf[sy][sx] = ['/', GRADE_GHOST];
+          buf[sy][sx] = ['/', GRADE_GHOST, TONE_FIRE];
         }
       }
     }
@@ -316,8 +339,8 @@ export function renderCampaignMarchVista(buf, game, opts = {}) {
   for (let r = 0; r < 5; r++) {
     for (let c = 0; c < width; c++) {
       const n = (c * 17 + scroll + r * 31) % 73;
-      if (r < 3 && season === 'winter' && n === 0) buf[y0 + r][x0 + c] = ['*', GRADE_DIM];
-      else if (r < 2 && n % 19 === 0) buf[y0 + r][x0 + c] = ['.', GRADE_GHOST];
+      if (r < 3 && season === 'winter' && n === 0) buf[y0 + r][x0 + c] = ['*', GRADE_DIM, TONE_SNOW];
+      else if (r < 2 && n % 19 === 0) buf[y0 + r][x0 + c] = ['.', GRADE_GHOST, TONE_RIVER];
     }
   }
   // Distant mountain crags strictly tucked on left/right flanks away from centerpiece rider
@@ -327,7 +350,7 @@ export function renderCampaignMarchVista(buf, game, opts = {}) {
     for (let k = 0; k < h; k++) {
       const py2 = y0 + 5 - k;
       if (py2 >= bounds.y0 && py2 <= bounds.y1) {
-        buf[py2][x0 + c] = [k === h - 1 ? '^' : ':', GRADE_GHOST];
+        buf[py2][x0 + c] = [k === h - 1 ? '^' : ':', k === h - 1 ? GRADE_MIST : GRADE_GHOST, k === h - 1 ? TONE_SNOW : TONE_STONE];
       }
     }
   }
@@ -347,12 +370,19 @@ export function renderCampaignMarchVista(buf, game, opts = {}) {
       '##################',
     ];
     const cx = x0 + (facingRight ? width - 19 : 1);
-    stampSprite(buf, cx, y0 + height - 5, castle, { baseGrade: GRADE_GHOST, highlightChars: new Set(['*']), bounds });
+    stampSprite(buf, cx, y0 + height - 5, castle, {
+      baseGrade: GRADE_MIST,
+      highlightChars: new Set(['*']),
+      tone: TONE_STONE,
+      highlightTone: TONE_FIRE,
+      bounds,
+    });
   } else if (tile === 'T') {
     for (let tx = 0; tx < width; tx += 19) {
       const rx = ((tx - (scroll % 19) + width) % width) + x0;
-      const pine = ['  /\\  ', ' /%%\\ ', '/%%%%\\', '  ||  '];
-      stampSprite(buf, rx, y0 + height - 5, pine, { baseGrade: GRADE_GHOST, bounds });
+      const pine = ['  /\\  ', ' /%%\\ ', '/%%%%\\'];
+      stampSprite(buf, rx, y0 + height - 5, pine, { baseGrade: GRADE_MIST, tone: TONE_FOREST, bounds });
+      stampSprite(buf, rx, y0 + height - 2, ['  ||  '], { baseGrade: GRADE_MIST, tone: TONE_WOOD, bounds });
     }
   }
 
@@ -361,11 +391,11 @@ export function renderCampaignMarchVista(buf, game, opts = {}) {
   const roadRow = y0 + height - 1;
   for (let c = 0; c < width; c++) {
     const gx = x0 + c;
-    buf[vergeRow][gx] = [((c + scroll) % 4 === 0) ? '.' : ' ', GRADE_GHOST];
+    buf[vergeRow][gx] = [((c + scroll) % 4 === 0) ? '.' : ' ', GRADE_GHOST, TONE_SNOW];
     if (tile === '=') {
-      buf[roadRow][gx] = [((c + scroll) % 4 === 0) ? '#' : '=', GRADE_DIM];
+      buf[roadRow][gx] = [((c + scroll) % 4 === 0) ? '#' : '=', GRADE_DIM, TONE_RIVER];
     } else {
-      buf[roadRow][gx] = [((c + scroll) % 5 === 0) ? '=' : '-', GRADE_GHOST];
+      buf[roadRow][gx] = [((c + scroll) % 5 === 0) ? '=' : '-', GRADE_MIST, TONE_PARCHMENT];
     }
   }
 
@@ -388,7 +418,7 @@ export function renderCampaignMarchVista(buf, game, opts = {}) {
     for (let i = 0; i < puff.length; i++) {
       const px2 = dustX + (facingRight ? -i : i);
       if (px2 >= bounds.x0 && px2 <= bounds.x1) {
-        buf[vergeRow][px2] = [puff[i], GRADE_DIM];
+        buf[vergeRow][px2] = [puff[i], GRADE_DIM, TONE_SNOW];
       }
     }
   }
@@ -553,46 +583,58 @@ export function renderBattleScenery(buf, battle, clock, pulseWaves, originX = 1,
     for (let x = 0; x < cols; x++) {
       let ch = bMap.grid[y][x];
       let g = GRADE_GHOST;
+      let tone = TONE_FOREST;
       if (y <= 1 && ch === '.') {
         const ridge = Math.sin(x * 0.24) + Math.cos(x * 0.11);
         if (ridge > 0.7) {
           ch = '^';
           g = GRADE_MIST;
+          tone = TONE_SNOW;
         } else if (ridge > 0.1) {
           ch = ':';
           g = GRADE_GHOST;
+          tone = TONE_STONE;
         } else {
           ch = ' ';
+          tone = TONE_RIVER;
         }
       } else if (ch === '.') {
         const speck = (x * 13 + y * 29) % 17;
         ch = speck === 0 ? '.' : speck === 1 ? ',' : ' ';
         g = GRADE_GHOST;
+        tone = speck === 0 ? TONE_FOREST : TONE_SNOW;
       } else if (ch === 'n') {
         ch = (x + y) % 2 === 0 ? '%' : '^';
         g = GRADE_MIST;
+        tone = TONE_STONE;
       } else if (ch === '=') {
         g = GRADE_DIM;
+        tone = TONE_PARCHMENT;
       } else if (ch === '~') {
         ch = (x + y + Math.floor(clock * 3)) % 3 === 0 ? '-' : '~';
-        g = GRADE_GHOST;
+        g = GRADE_MIST;
+        tone = TONE_RIVER;
       } else if (ch === 'T') {
         ch = ' ';
         g = GRADE_DIM;
+        tone = TONE_FOREST;
       } else if (ch === 'L') {
         ch = 'L';
         g = GRADE_LIT;
+        tone = TONE_AMBER;
       } else if (ch === '#' || ch === 'H') {
         g = ch === 'H' ? GRADE_BRIGHT : GRADE_LIT;
+        tone = ch === 'H' ? TONE_WOOD : TONE_STONE;
       }
 
       for (const pw of pulseWaves) {
         if (Math.abs(Math.hypot(x - pw.x, y - pw.y) - pw.radius) < 1.1) {
           ch = 'o';
           g = GRADE_BRIGHT;
+          tone = TONE_AMBER;
         }
       }
-      buf[originY + y][originX + x] = [ch, g];
+      buf[originY + y][originX + x] = [ch, g, tone];
     }
   }
 
@@ -600,8 +642,14 @@ export function renderBattleScenery(buf, battle, clock, pulseWaves, originX = 1,
   for (let y = 2; y < rows - 2; y += 2) {
     for (let x = 2; x < cols - 4; x += 3) {
       if (bMap.grid[y][x] === 'T') {
-        stampSprite(buf, originX + x - 1, originY + y - 1, [' /\\ ', '/%%\\', ' || '], {
+        stampSprite(buf, originX + x - 1, originY + y - 1, [' /\\ ', '/%%\\'], {
           baseGrade: GRADE_DIM,
+          tone: TONE_FOREST,
+          bounds,
+        });
+        stampSprite(buf, originX + x - 1, originY + y + 1, [' || '], {
+          baseGrade: GRADE_MIST,
+          tone: TONE_WOOD,
           bounds,
         });
       }
@@ -617,7 +665,7 @@ export function renderBattleScenery(buf, battle, clock, pulseWaves, originX = 1,
     // Courtyard interior masonry & inner flags behind the curtain wall
     for (let y = 2; y < rows - 2; y++) {
       for (let x = wx + 2; x < cols - 1; x++) {
-        if ((x + y * 2) % 3 === 0) buf[originY + y][originX + x] = ['.', GRADE_GHOST];
+        if ((x + y * 2) % 3 === 0) buf[originY + y][originX + x] = ['.', GRADE_GHOST, TONE_STONE];
       }
     }
 
@@ -630,25 +678,37 @@ export function renderBattleScenery(buf, battle, clock, pulseWaves, originX = 1,
       '|%%#####%%|',
       '|_________|',
     ];
-    stampSprite(buf, originX + wx - 1, originY + 1, towerArt, { baseGrade: GRADE_LIT, bounds });
-    stampSprite(buf, originX + wx - 1, originY + rows - 7, towerArt, { baseGrade: GRADE_LIT, bounds });
+    stampSprite(buf, originX + wx - 1, originY + 1, towerArt, { baseGrade: GRADE_LIT, tone: TONE_STONE, bounds });
+    stampSprite(buf, originX + wx - 1, originY + rows - 7, towerArt, { baseGrade: GRADE_LIT, tone: TONE_STONE, bounds });
 
     // Parapet vertical stone blocks with climbing notch gaps ('L') respected cleanly!
     for (let y = 0; y < rows; y++) {
       const tile = bMap.grid[y][wx];
       if (tile === 'L') {
-        buf[originY + y][originX + wx - 1] = ['|', GRADE_LIT];
-        buf[originY + y][originX + wx] = ['=', GRADE_BRIGHT];
-        buf[originY + y][originX + wx + 1] = ['|', GRADE_LIT];
+        buf[originY + y][originX + wx - 1] = ['|', GRADE_LIT, TONE_WOOD];
+        buf[originY + y][originX + wx] = ['=', GRADE_BRIGHT, TONE_AMBER];
+        buf[originY + y][originX + wx + 1] = ['|', GRADE_LIT, TONE_WOOD];
       } else if (tile === '#') {
-        buf[originY + y][originX + wx] = ['#', GRADE_LIT];
-        if (wx + 1 < cols) buf[originY + y][originX + wx + 1] = ['%', GRADE_DIM];
+        buf[originY + y][originX + wx] = ['#', GRADE_LIT, TONE_STONE];
+        if (wx + 1 < cols) buf[originY + y][originX + wx + 1] = ['%', GRADE_DIM, TONE_STONE];
       }
     }
 
     // Braziers blazing atop watchtowers
-    stampSprite(buf, originX + wx + 2, originY + 2, [torch], { baseGrade: GRADE_BRIGHT, highlightChars: new Set(['(', ')', '*', '^']), bounds });
-    stampSprite(buf, originX + wx + 2, originY + rows - 5, [torch], { baseGrade: GRADE_BRIGHT, highlightChars: new Set(['(', ')', '*', '^']), bounds });
+    stampSprite(buf, originX + wx + 2, originY + 2, [torch], {
+      baseGrade: GRADE_BRIGHT,
+      highlightChars: new Set(['(', ')', '*', '^']),
+      tone: TONE_FIRE,
+      highlightTone: TONE_FIRE,
+      bounds,
+    });
+    stampSprite(buf, originX + wx + 2, originY + rows - 5, [torch], {
+      baseGrade: GRADE_BRIGHT,
+      highlightChars: new Set(['(', ')', '*', '^']),
+      tone: TONE_FIRE,
+      highlightTone: TONE_FIRE,
+      bounds,
+    });
 
     // Gatehouse Arch & Studded Doors (or Splintered Breach when open!)
     if (!battle.gateBreached) {
@@ -660,8 +720,10 @@ export function renderBattleScenery(buf, battle, clock, pulseWaves, originX = 1,
         ' \\=====/ ',
       ];
       stampSprite(buf, originX + wx - 2, originY + gy - 2, gateClosed, {
-        baseGrade: GRADE_BRIGHT,
-        highlightChars: new Set(['|', '[', ']']),
+        baseGrade: GRADE_LIT,
+        highlightChars: new Set(['[', ']', '=']),
+        tone: TONE_WOOD,
+        highlightTone: TONE_STEEL,
         bounds,
       });
     } else {
@@ -675,6 +737,8 @@ export function renderBattleScenery(buf, battle, clock, pulseWaves, originX = 1,
       stampSprite(buf, originX + wx - 2, originY + gy - 2, gateBroken, {
         baseGrade: GRADE_DIM,
         highlightChars: new Set(['=']),
+        tone: TONE_WOOD,
+        highlightTone: TONE_FIRE,
         bounds,
       });
     }
@@ -827,25 +891,25 @@ export const HOUSE_CRESTS = {
 };
 
 export function pickPortraitForDialogue(dialogue) {
-  if (!dialogue) return { portrait: PORTRAITS.council, crest: HOUSE_CRESTS.thorne, houseId: 'thorne' };
+  if (!dialogue) return { portrait: PORTRAITS.council, crest: HOUSE_CRESTS.thorne, houseId: 'thorne', tone: houseToneId('thorne') };
   const id = String(dialogue.id || '').toLowerCase();
   const sp = String(dialogue.speaker || '').toLowerCase();
   if (id.includes('dray') || sp.includes('dray') || sp.includes('highcrown')) {
-    return { portrait: PORTRAITS.dray, crest: HOUSE_CRESTS.dray, houseId: 'dray' };
+    return { portrait: PORTRAITS.dray, crest: HOUSE_CRESTS.dray, houseId: 'dray', tone: houseToneId('dray') };
   }
   if (sp.includes('brack') || sp.includes('saltport') || id.includes('brack')) {
-    return { portrait: PORTRAITS.brack, crest: HOUSE_CRESTS.brack, houseId: 'brack' };
+    return { portrait: PORTRAITS.brack, crest: HOUSE_CRESTS.brack, houseId: 'brack', tone: houseToneId('brack') };
   }
   if (sp.includes('vance') || sp.includes('rook') || id.includes('vance')) {
-    return { portrait: PORTRAITS.vance, crest: HOUSE_CRESTS.vance, houseId: 'vance' };
+    return { portrait: PORTRAITS.vance, crest: HOUSE_CRESTS.vance, houseId: 'vance', tone: houseToneId('vance') };
   }
   if (sp.includes('locke') || sp.includes('greycrag') || id.includes('locke')) {
-    return { portrait: PORTRAITS.locke, crest: HOUSE_CRESTS.locke, houseId: 'locke' };
+    return { portrait: PORTRAITS.locke, crest: HOUSE_CRESTS.locke, houseId: 'locke', tone: houseToneId('locke') };
   }
   if (id.includes('council') || sp.includes('spymaster') || sp.includes('rookery')) {
-    return { portrait: PORTRAITS.council, crest: HOUSE_CRESTS.thorne, houseId: 'thorne' };
+    return { portrait: PORTRAITS.council, crest: HOUSE_CRESTS.thorne, houseId: 'thorne', tone: houseToneId('thorne') };
   }
-  return { portrait: PORTRAITS.thorne, crest: HOUSE_CRESTS.thorne, houseId: 'thorne' };
+  return { portrait: PORTRAITS.thorne, crest: HOUSE_CRESTS.thorne, houseId: 'thorne', tone: houseToneId('thorne') };
 }
 
 export function renderSteedShowcase(buf, clock, bounds, seasonId = 'winter') {

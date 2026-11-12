@@ -11,6 +11,20 @@ import {
   GRADE_GHOST,
   GRADE_LIT,
   GRADE_MIST,
+  TONE_AMBER,
+  TONE_CRIMSON,
+  TONE_FIRE,
+  TONE_FOREST,
+  TONE_HORSE,
+  TONE_PARCHMENT,
+  TONE_RIVER,
+  TONE_SKIN,
+  TONE_SNOW,
+  TONE_STEEL,
+  TONE_STONE,
+  TONE_VIOLET,
+  TONE_WARHORSE,
+  TONE_WOOD,
   sanitizeGlyph,
 } from '../engine/palette.js';
 
@@ -85,9 +99,12 @@ function evalHorseRelief(px, py, phase, opts = {}) {
   const y = py - bounce;
 
   let zBack = -99.0;  // far-side legs, streaming mane, windblown cloak, tail
+  let backTone = TONE_WARHORSE;
   let zHorse = -99.0; // core stallion chest, barrel, croup, arched neck, head, near legs
   let zArmor = -99.0; // saddle cloth, barding chest plate, knight torso/greave
+  let armorTone = TONE_STEEL;
   let zSteel = -99.0; // knight greathelm, raised lance/pennant, steel chamfron
+  let steelTone = TONE_STEEL;
 
   // 1. Sculpted Equine Barrel, Deep Chest Keel & Rounded Haunches
   zHorse = addSeg(zHorse, px, y, -0.60, 0.06 - pitch * 0.25, 0.34, 0.04 + pitch * 0.25, 0.26 + pad, 0.31 + pad, 0.06, 0.0, 1.18);
@@ -95,8 +112,16 @@ function evalHorseRelief(px, py, phase, opts = {}) {
   zHorse = addSeg(zHorse, px, y, -0.84, 0.04 - pitch * 0.25, -0.46, 0.16 - pitch * 0.2, 0.26 + pad, 0.30 + pad, 0.07, 0.03, 1.18);
 
   // Ornamental Caparison / Saddle Blanket & Barding Chest Guard
-  zArmor = addSeg(zArmor, px, y, -0.42, 0.22, 0.16, 0.22, 0.15 + pad * 0.5, 0.15 + pad * 0.5, 0.03, 0.11);
-  zArmor = addSeg(zArmor, px, y, 0.44, 0.16, 0.58, -0.04, 0.14 + pad * 0.5, 0.12 + pad * 0.5, 0.03, 0.12);
+  const zCaparison = segHeight(px, y, -0.42, 0.22, 0.16, 0.22, 0.15 + pad * 0.5, 0.15 + pad * 0.5, 0.11);
+  if (zCaparison > zArmor) {
+    zArmor = zCaparison;
+    armorTone = TONE_CRIMSON;
+  }
+  const zBarding = segHeight(px, y, 0.44, 0.16, 0.58, -0.04, 0.14 + pad * 0.5, 0.12 + pad * 0.5, 0.12);
+  if (zBarding > zArmor) {
+    zArmor = zBarding;
+    armorTone = TONE_STEEL;
+  }
 
   // 2. Proud High-Arched Stallion Neck + Clear Sky Gap Before Rider!
   const neckBX = 0.46;
@@ -177,42 +202,70 @@ function evalHorseRelief(px, py, phase, opts = {}) {
     const rShX = rHipX + lean;
     const rShY = 0.86;
 
-    zArmor = addSeg(zArmor, px, y, rHipX, rHipY, rShX, rShY, 0.17 + pad, 0.21 + pad, 0.04, 0.14);
-    zArmor = addSeg(zArmor, px, y, rHipX + 0.03, rHipY, rHipX + 0.16, 0.02, 0.115 + pad, 0.085 + pad, 0.02, 0.18);
-    zArmor = addSeg(zArmor, px, y, rHipX + 0.16, 0.02, rHipX + 0.06, -0.24, 0.085 + pad, 0.068 + pad, 0.02, 0.18);
-    zArmor = addSeg(zArmor, px, y, rShX - 0.02, rShY - 0.05, rShX + 0.18, rShY - 0.14, 0.13 + pad, 0.12 + pad, 0.02, 0.21);
+    const kTorso = addSeg(-99, px, y, rHipX, rHipY, rShX, rShY, 0.17 + pad, 0.21 + pad, 0.04, 0.14);
+    const kThigh = segHeight(px, y, rHipX + 0.03, rHipY, rHipX + 0.16, 0.02, 0.115 + pad, 0.085 + pad, 0.18);
+    const kGreave = segHeight(px, y, rHipX + 0.16, 0.02, rHipX + 0.06, -0.24, 0.085 + pad, 0.068 + pad, 0.18);
+    const kArm = segHeight(px, y, rShX - 0.02, rShY - 0.05, rShX + 0.18, rShY - 0.14, 0.13 + pad, 0.12 + pad, 0.21);
+    const zRiderBody = Math.max(kTorso, kThigh, kGreave, kArm);
+    if (zRiderBody > zArmor) {
+      zArmor = zRiderBody;
+      armorTone = TONE_STEEL;
+    }
 
     zSteel = addSeg(zSteel, px, y, rShX + 0.01, rShY + 0.14, rShX + 0.04, rShY + 0.32, 0.145 + pad, 0.135 + pad, 0.02, 0.21);
     const plume = Math.sin(p * 2.0) * 0.04;
-    zBack = addSeg(zBack, px, y, rShX, rShY + 0.34, rShX - 0.28, rShY + 0.30 + plume, Math.max(minR, 0.065), Math.max(minR * 0.75, 0.025), 0.03, -0.02);
+    const zPlume = segHeight(px, y, rShX, rShY + 0.34, rShX - 0.28, rShY + 0.30 + plume, Math.max(minR, 0.065), Math.max(minR * 0.75, 0.025), -0.02);
+    if (zPlume > zBack) {
+      zBack = zPlume;
+      backTone = TONE_CRIMSON;
+    }
 
     const cw1 = Math.sin(p + 0.8) * 0.10;
     const cw2 = Math.cos(p - 0.4) * 0.12;
-    zBack = addSeg(zBack, px, y, rShX - 0.08, rShY + 0.02, -0.74, 0.68 + cw1, 0.125 + pad, 0.165 + pad, 0.04, -0.04);
-    zBack = addSeg(zBack, px, y, -0.72, 0.68 + cw1, -1.34, 0.50 + cw2, 0.155 + pad, Math.max(minR, 0.065), 0.04, -0.06);
+    const zCloak1 = segHeight(px, y, rShX - 0.08, rShY + 0.02, -0.74, 0.68 + cw1, 0.125 + pad, 0.165 + pad, -0.04);
+    const zCloak2 = segHeight(px, y, -0.72, 0.68 + cw1, -1.34, 0.50 + cw2, 0.155 + pad, Math.max(minR, 0.065), -0.06);
+    const zCloak = smax(zCloak1, zCloak2, 0.04);
+    if (zCloak > zBack) {
+      zBack = zCloak;
+      backTone = TONE_CRIMSON;
+    }
 
     // War-Lance held diagonally back-to-up ABOVE the knight (clear of ears) + Couched Front Spear!
     const tipX = charging ? 0.24 : 0.40;
     const tipY = 1.48;
     const handX = rShX + 0.08;
     const handY = rShY - 0.14;
-    zSteel = addSeg(zSteel, px, y, handX, handY, tipX, tipY, Math.max(minR * 0.85, 0.045), Math.max(minR * 0.8, 0.036), 0.01, 0.24);
+    const zShaft = segHeight(px, y, handX, handY, tipX, tipY, Math.max(minR * 0.85, 0.045), Math.max(minR * 0.8, 0.036), 0.24);
+    if (zShaft > zSteel) {
+      zSteel = zShaft;
+      steelTone = py > 1.24 ? TONE_STEEL : TONE_WOOD;
+    }
     if (charging) {
-      zSteel = addSeg(zSteel, px, y, 0.72, 0.19, 1.72, 0.23, Math.max(minR * 0.62, 0.028), Math.max(minR * 0.45, 0.018), 0.008, 0.24);
+      const zCouch = segHeight(px, y, 0.72, 0.19, 1.72, 0.23, Math.max(minR * 0.62, 0.028), Math.max(minR * 0.45, 0.018), 0.24);
+      if (zCouch > zSteel) {
+        zSteel = zCouch;
+        steelTone = px > 1.38 ? TONE_STEEL : TONE_WOOD;
+      }
     }
     const bFlap = Math.sin(p * 2.0 + 0.4) * 0.05;
     const bx0 = lerp(handX, tipX, 0.78);
     const by0 = lerp(handY, tipY, 0.78);
-    zArmor = addSeg(zArmor, px, y, bx0, by0, bx0 - 0.56, by0 - 0.05 + bFlap, Math.max(minR * 1.15, 0.095), Math.max(minR * 0.75, 0.030), 0.02, 0.16);
+    const zBanner = segHeight(px, y, bx0, by0, bx0 - 0.56, by0 - 0.05 + bFlap, Math.max(minR * 1.15, 0.095), Math.max(minR * 0.75, 0.030), 0.16);
+    if (zBanner > zArmor) {
+      zArmor = zBanner;
+      armorTone = TONE_CRIMSON;
+    }
   }
 
   let z = -99.0;
   let layer = 0;
-  if (zBack > z) { z = zBack; layer = 1; }
-  if (zHorse > z) { z = zHorse; layer = 2; }
-  if (zArmor > z) { z = zArmor; layer = 3; }
-  if (zSteel > z) { z = zSteel; layer = 4; }
-  return { z, layer, eyeCatch };
+  let tone = TONE_HORSE;
+  if (zBack > z) { z = zBack; layer = 1; tone = backTone; }
+  if (zHorse > z) { z = zHorse; layer = 2; tone = TONE_HORSE; }
+  if (zArmor > z) { z = zArmor; layer = 3; tone = armorTone; }
+  if (zSteel > z) { z = zSteel; layer = 4; tone = steelTone; }
+  if (eyeCatch) tone = TONE_AMBER;
+  return { z, layer, tone, eyeCatch };
 }
 
 /**
@@ -276,7 +329,7 @@ export function render3DHorseCanvas(cols, rows, phase, opts = {}) {
           center.layer === 1
             ? lum > 0.44 ? GRADE_DIM : GRADE_MIST
             : lum > 0.84 ? GRADE_BRIGHT : lum > 0.50 ? GRADE_LIT : GRADE_DIM;
-        out[r][c] = [ch, grade];
+        out[r][c] = [ch, grade, center.tone];
       } else if (withSkyBackdrop) {
         const rx = c + backdropScroll * 0.45;
         const groundY = Math.floor(rows * 0.88);
@@ -288,26 +341,29 @@ export function render3DHorseCanvas(cols, rows, phase, opts = {}) {
         if (r >= groundY) {
           const castShadow = wx > -1.0 && wx < 1.0 && wy < -0.5;
           if (castShadow) {
-            out[r][c] = ['_', GRADE_GHOST];
+            out[r][c] = ['_', GRADE_GHOST, TONE_STONE];
           } else {
             const roadMix = ((c + Math.floor(backdropScroll * 1.5) + r * 3) % 6 === 0);
-            out[r][c] = [roadMix ? '=' : '-', GRADE_GHOST];
+            out[r][c] = [roadMix ? '=' : '-', GRADE_GHOST, TONE_PARCHMENT];
           }
         } else if (keepCrown) {
           const torchGlow = c === Math.floor(keepMaxCol * 0.55) && r === Math.floor(rows * 0.49);
-          out[r][c] = torchGlow ? ['*', GRADE_LIT] : [c % 3 === 0 ? ':' : ';', GRADE_GHOST];
+          out[r][c] = torchGlow
+            ? ['*', GRADE_BRIGHT, TONE_FIRE]
+            : [c % 3 === 0 ? ':' : ';', GRADE_MIST, TONE_STONE];
         } else if (r >= Math.floor(ridge) && r < groundY) {
-          out[r][c] = [(c + r) % 7 === 0 ? '.' : ' ', GRADE_GHOST];
+          const isCrest = r <= Math.floor(ridge) + 1;
+          out[r][c] = [(c + r) % 7 === 0 ? '.' : ' ', GRADE_GHOST, isCrest ? TONE_SNOW : TONE_STONE];
         } else {
           const highSky = Math.max(0, 1.0 - r / (rows * 0.58));
           const cloudA = Math.sin(rx * 0.055 + r * 0.30) * 0.5 + 0.5;
           const cloudB = Math.cos(rx * 0.11 - r * 0.40) * 0.5 + 0.5;
           const sky = clamp((cloudA * 0.16 + cloudB * 0.12) * highSky, 0.0, 0.34);
           const snow = seasonId === 'winter' && ((c * 19 + Math.floor(backdropScroll * 1.3) + r * 31) % 79 === 0);
-          if (snow) out[r][c] = ['*', GRADE_DIM];
+          if (snow) out[r][c] = ['*', GRADE_DIM, TONE_SNOW];
           else if (sky > 0.04) {
             const idx = clamp(Math.floor(sky * (RAMP.length - 1)), 1, 5);
-            out[r][c] = [RAMP[idx], GRADE_GHOST];
+            out[r][c] = [RAMP[idx], GRADE_GHOST, TONE_RIVER];
           }
         }
       }
@@ -322,6 +378,7 @@ export function render3DHorseCanvas(cols, rows, phase, opts = {}) {
 function evalInfantryRelief(px, py, type, variant = 0) {
   let z = -99.0;
   let layer = 2; // 2=cloth/timber, 3=shield/armor, 4=blade/iron
+  let tone = type === 'ram' ? TONE_WOOD : TONE_CRIMSON;
 
   if (type === 'ram') {
     const thrust = variant === 1 ? 0.18 : 0.0;
@@ -331,12 +388,12 @@ function evalInfantryRelief(px, py, type, variant = 0) {
     const timberBox = boxHeight(x, py, 0.0, 0.02, 1.05, 0.25, 0.0, 0.14);
     z = smax(timberBox, smax(roofL, roofR, 0.04), 0.04);
     const ramHead = segHeight(x, py, -0.5, -0.05, 1.48, -0.05, 0.14, 0.19, 0.16);
-    if (ramHead > z) { z = ramHead; layer = 4; }
+    if (ramHead > z) { z = ramHead; layer = 4; tone = TONE_STEEL; }
     for (const wx of [-0.72, 0.72]) {
       const wh = Math.sqrt(Math.max(-1, 0.24 * 0.24 - ((x - wx) ** 2 + (py + 0.38) ** 2)));
-      if (wh > 0 && wh + 0.20 > z) { z = wh + 0.20; layer = 3; }
+      if (wh > 0 && wh + 0.20 > z) { z = wh + 0.20; layer = 3; tone = TONE_STONE; }
     }
-    return { z, layer };
+    return { z, layer, tone };
   }
 
   const offsets = type === 'spear' ? [-0.46, 0.18] : [-0.42, 0.28];
@@ -344,33 +401,48 @@ function evalInfantryRelief(px, py, type, variant = 0) {
     const ox = offsets[i];
     const ux = px - ox;
     const uy = py;
-    z = addSeg(z, ux, uy, 0.0, 0.50, 0.0, 0.56, 0.16, 0.14, 0.03, 0.05);
-    z = addSeg(z, ux, uy, 0.0, 0.38, 0.0, -0.04, 0.22, 0.16, 0.04, 0.02);
-    z = addSeg(z, ux, uy, -0.09, -0.04, -0.15, -0.55, 0.105, 0.08, 0.02, 0.0);
-    z = addSeg(z, ux, uy, 0.09, -0.04, 0.15, -0.55, 0.105, 0.08, 0.02, 0.0);
+    const headZ = segHeight(ux, uy, 0.0, 0.50, 0.0, 0.56, 0.16, 0.14, 0.05);
+    const bodyZ = smax(
+      segHeight(ux, uy, 0.0, 0.38, 0.0, -0.04, 0.22, 0.16, 0.02),
+      Math.max(
+        segHeight(ux, uy, -0.09, -0.04, -0.15, -0.55, 0.105, 0.08, 0.0),
+        segHeight(ux, uy, 0.09, -0.04, 0.15, -0.55, 0.105, 0.08, 0.0)
+      ),
+      0.03
+    );
+    if (bodyZ > z) {
+      z = bodyZ;
+      layer = 2;
+      tone = TONE_CRIMSON;
+    }
+    if (headZ > z) {
+      z = headZ;
+      layer = 3;
+      tone = TONE_STEEL;
+    }
 
     if (type === 'spear') {
       const br = variant === 1;
       const sh = boxHeight(ux, uy, br ? 0.20 : 0.14, 0.14, 0.17, 0.35, 0.18, 0.14);
-      if (sh > z) { z = sh; layer = 3; }
+      if (sh > z) { z = sh; layer = 3; tone = TONE_STEEL; }
       const pike = segHeight(ux, uy, -0.16, 0.05, 0.80, br ? 0.44 : 0.74, 0.055, 0.035, 0.22);
-      if (pike > z) { z = pike; layer = 4; }
+      if (pike > z) { z = pike; layer = 4; tone = ux > 0.35 || uy > 0.48 ? TONE_STEEL : TONE_WOOD; }
     } else if (type === 'bow') {
       const draw = variant === 1 ? 0.08 : 0.0;
       const bowT = segHeight(ux, uy, 0.20 - draw, 0.58, 0.36, 0.16, 0.055, 0.050, 0.18);
       const bowB = segHeight(ux, uy, 0.36, 0.16, 0.20 - draw, -0.24, 0.050, 0.055, 0.18);
       const arrow = segHeight(ux, uy, 0.02, 0.18, 0.58, 0.18, 0.040, 0.025, 0.20);
       const weapon = Math.max(bowT, bowB, arrow);
-      if (weapon > z) { z = weapon; layer = 4; }
+      if (weapon > z) { z = weapon; layer = 4; tone = arrow >= Math.max(bowT, bowB) && ux > 0.32 ? TONE_STEEL : TONE_WOOD; }
     } else {
       const swing = variant === 1;
       const sh = segHeight(ux, uy, -0.12, 0.04, -0.14, 0.34, 0.16, 0.16, 0.16);
-      if (sh > z) { z = sh; layer = 3; }
+      if (sh > z) { z = sh; layer = 3; tone = TONE_CRIMSON; }
       const sw = segHeight(ux, uy, 0.12, 0.20, swing ? 0.64 : 0.36, swing ? 0.22 : 0.70, 0.06, 0.032, 0.22);
-      if (sw > z) { z = sw; layer = 4; }
+      if (sw > z) { z = sw; layer = 4; tone = TONE_STEEL; }
     }
   }
-  return { z, layer };
+  return { z, layer, tone };
 }
 
 export function render3DBattleUnit(type, variant = 0, cols = 15, rows = 6) {
@@ -404,27 +476,27 @@ export function render3DBattleUnit(type, variant = 0, cols = 15, rows = 6) {
         if (cen.layer === 3) lum = clamp(lum * 1.1 + 0.08, 0, 1);
         if (cen.layer === 4) lum = clamp(0.78 + diff * 0.22, 0, 1);
         const idx = clamp(Math.round(lum * (BODY_RAMP.length - 1)), 0, BODY_RAMP.length - 1);
-        out[r][c] = [BODY_RAMP[idx], lum > 0.84 ? GRADE_BRIGHT : lum > 0.48 ? GRADE_LIT : GRADE_DIM];
+        out[r][c] = [BODY_RAMP[idx], lum > 0.84 ? GRADE_BRIGHT : lum > 0.48 ? GRADE_LIT : GRADE_DIM, cen.tone];
       }
     }
   }
   // Composite crisp weapon steel highlights so spear/bow/guard/ram read at first glance!
   if (type === 'spear' && rows >= 6 && cols >= 15) {
     const pikes = variant === 1 ? [[2, 9, '='], [2, 10, '='], [2, 11, '>'], [3, 8, '-'], [3, 12, '>']] : [[0, 6, '^'], [0, 10, '^'], [1, 6, '|'], [1, 10, '|'], [2, 7, '/'], [2, 11, '/']];
-    for (const [rr, cc, ch] of pikes) out[rr][cc] = [ch, GRADE_BRIGHT];
+    for (const [rr, cc, ch] of pikes) out[rr][cc] = [ch, GRADE_BRIGHT, TONE_STEEL];
   } else if (type === 'bow' && rows >= 6 && cols >= 15) {
     const arcs = variant === 1
-      ? [[1, 6, ')'], [2, 7, '|'], [2, 8, '>'], [3, 6, ')'], [1, 11, ')'], [2, 12, '>'], [3, 11, ')']]
-      : [[1, 6, ')'], [2, 6, '|'], [3, 6, ')'], [1, 11, ')'], [2, 11, '|'], [3, 11, ')']];
-    for (const [rr, cc, ch] of arcs) out[rr][cc] = [ch, GRADE_BRIGHT];
+      ? [[1, 6, ')', TONE_WOOD], [2, 7, '|', TONE_WOOD], [2, 8, '>', TONE_STEEL], [3, 6, ')', TONE_WOOD], [1, 11, ')', TONE_WOOD], [2, 12, '>', TONE_STEEL], [3, 11, ')', TONE_WOOD]]
+      : [[1, 6, ')', TONE_WOOD], [2, 6, '|', TONE_WOOD], [3, 6, ')', TONE_WOOD], [1, 11, ')', TONE_WOOD], [2, 11, '|', TONE_WOOD], [3, 11, ')', TONE_WOOD]];
+    for (const [rr, cc, ch, tn] of arcs) out[rr][cc] = [ch, GRADE_BRIGHT, tn];
   } else if (type === 'guard' && rows >= 6 && cols >= 15) {
     const blades = variant === 1
       ? [[2, 7, '-'], [2, 8, '>'], [2, 12, '='], [2, 13, '>'], [3, 5, '['], [3, 10, '[']]
       : [[0, 7, '/'], [0, 12, '/'], [1, 6, '/'], [1, 11, '/'], [2, 5, '|'], [2, 10, '|']];
-    for (const [rr, cc, ch] of blades) out[rr][cc] = [ch, GRADE_BRIGHT];
+    for (const [rr, cc, ch] of blades) out[rr][cc] = [ch, GRADE_BRIGHT, TONE_STEEL];
   } else if (type === 'ram' && rows >= 6 && cols >= 18) {
-    out[3][14] = ['=', GRADE_BRIGHT];
-    out[3][15] = ['>', GRADE_BRIGHT];
+    out[3][14] = ['=', GRADE_BRIGHT, TONE_STEEL];
+    out[3][15] = ['>', GRADE_BRIGHT, TONE_STEEL];
   }
   return out;
 }
@@ -432,48 +504,64 @@ export function render3DBattleUnit(type, variant = 0, cols = 15, rows = 6) {
 // ============================================================================
 // 3. ANALYTICAL 3D RELIEF HOUSE LORD PORTRAITS (Chiaroscuro Noble Busts!)
 // ============================================================================
+const PORTRAIT_CLOAK_TONE = {
+  thorne: TONE_CRIMSON,
+  dray: TONE_VIOLET,
+  vance: TONE_FOREST,
+  brack: TONE_CRIMSON,
+  locke: TONE_STEEL,
+  council: TONE_STONE,
+};
+
 function evalLordBustRelief(px, py, trait = 'thorne') {
-  let zHead = -99.0;
+  let zFace = -99.0;
+  let zCloak = -99.0;
+  let zBeard = -99.0;
+  let zHeadgear = -99.0;
+  let headgearTone = TONE_AMBER;
+
   // Cranium, cheek plane, strong jawline, aquiline nose bridge, muscular neck & wide pauldrons
-  zHead = addSeg(zHead, px, py, 0.0, 0.28, 0.0, 0.02, 0.37, 0.35, 0.06, 0.05);
-  zHead = addSeg(zHead, px, py, 0.0, 0.04, 0.0, -0.26, 0.33, 0.21, 0.06, 0.06);
-  // Heavy brow ridge
-  zHead = addSeg(zHead, px, py, -0.22, 0.20, 0.22, 0.20, 0.085, 0.085, 0.03, 0.16);
-  // Aquiline nose bridge
-  zHead = addSeg(zHead, px, py, 0.0, 0.21, 0.0, -0.04, 0.062, 0.055, 0.02, 0.20);
-  // Collar & broad cloaked noble shoulders
-  zHead = addSeg(zHead, px, py, 0.0, -0.22, 0.0, -0.52, 0.21, 0.24, 0.05, -0.02);
-  zHead = addSeg(zHead, px, py, -0.82, -0.68, 0.82, -0.68, 0.34, 0.34, 0.08, 0.0);
+  zFace = addSeg(zFace, px, py, 0.0, 0.28, 0.0, 0.02, 0.37, 0.35, 0.06, 0.05);
+  zFace = addSeg(zFace, px, py, 0.0, 0.04, 0.0, -0.26, 0.33, 0.21, 0.06, 0.06);
+  zFace = addSeg(zFace, px, py, -0.22, 0.20, 0.22, 0.20, 0.085, 0.085, 0.03, 0.16);
+  zFace = addSeg(zFace, px, py, 0.0, 0.21, 0.0, -0.04, 0.062, 0.055, 0.02, 0.20);
+  zFace = addSeg(zFace, px, py, 0.0, -0.22, 0.0, -0.52, 0.21, 0.24, 0.05, -0.02);
+  zCloak = addSeg(zCloak, px, py, -0.82, -0.68, 0.82, -0.68, 0.34, 0.34, 0.08, 0.0);
 
   if (trait === 'dray') {
-    // High Stag-Antler Crown + Jagged Steel Gorget
-    zHead = addSeg(zHead, px, py, -0.34, 0.42, 0.34, 0.42, 0.10, 0.10, 0.03, 0.14);
-    zHead = addSeg(zHead, px, py, -0.26, 0.44, -0.54, 0.90, 0.085, 0.030, 0.03, 0.12);
-    zHead = addSeg(zHead, px, py, 0.26, 0.44, 0.54, 0.90, 0.085, 0.030, 0.03, 0.12);
+    zHeadgear = addSeg(zHeadgear, px, py, -0.34, 0.42, 0.34, 0.42, 0.10, 0.10, 0.03, 0.14);
+    zHeadgear = addSeg(zHeadgear, px, py, -0.26, 0.44, -0.54, 0.90, 0.085, 0.030, 0.03, 0.12);
+    zHeadgear = addSeg(zHeadgear, px, py, 0.26, 0.44, 0.54, 0.90, 0.085, 0.030, 0.03, 0.12);
+    headgearTone = TONE_AMBER;
   } else if (trait === 'council') {
-    // Draped Maester Hood + Heavy Chain Collar
-    zHead = addSeg(zHead, px, py, 0.0, 0.72, -0.40, 0.06, 0.19, 0.16, 0.06, 0.09);
-    zHead = addSeg(zHead, px, py, 0.0, 0.72, 0.40, 0.06, 0.19, 0.16, 0.06, 0.09);
+    zHeadgear = addSeg(zHeadgear, px, py, 0.0, 0.72, -0.40, 0.06, 0.19, 0.16, 0.06, 0.09);
+    zHeadgear = addSeg(zHeadgear, px, py, 0.0, 0.72, 0.40, 0.06, 0.19, 0.16, 0.06, 0.09);
+    headgearTone = TONE_STONE;
   } else if (trait === 'vance') {
-    // Noble Winged Tiara / High Braided Coif
-    zHead = addSeg(zHead, px, py, 0.0, 0.42, 0.0, 0.78, 0.27, 0.10, 0.05, 0.11);
+    zHeadgear = addSeg(zHeadgear, px, py, 0.0, 0.42, 0.0, 0.78, 0.27, 0.10, 0.05, 0.11);
+    headgearTone = py > 0.52 ? TONE_AMBER : TONE_WARHORSE;
   } else if (trait === 'locke') {
-    // Flat Steel Visored Bar-Helm + High Pauldrons
-    zHead = addSeg(zHead, px, py, -0.35, 0.35, 0.35, 0.35, 0.08, 0.08, 0.02, 0.14);
-    zHead = addSeg(zHead, px, py, -0.56, -0.42, 0.56, -0.42, 0.25, 0.25, 0.06, 0.09);
+    zHeadgear = addSeg(zHeadgear, px, py, -0.35, 0.35, 0.35, 0.35, 0.08, 0.08, 0.02, 0.14);
+    zCloak = addSeg(zCloak, px, py, -0.56, -0.42, 0.56, -0.42, 0.25, 0.25, 0.06, 0.09);
+    headgearTone = TONE_STEEL;
   } else if (trait === 'brack') {
-    // Thick Beard & Heavy Plate Gorget
-    zHead = addSeg(zHead, px, py, 0.0, -0.10, 0.0, -0.54, 0.25, 0.15, 0.04, 0.11);
+    zBeard = addSeg(zBeard, px, py, 0.0, -0.10, 0.0, -0.54, 0.25, 0.15, 0.04, 0.11);
   } else {
-    // Lord Thorne: Wolf-Pelt Cloak Collar + Close-Cropped Beard
-    zHead = addSeg(zHead, px, py, -0.58, -0.40, 0.58, -0.40, 0.26, 0.26, 0.06, 0.08);
-    zHead = addSeg(zHead, px, py, 0.0, -0.12, 0.0, -0.42, 0.21, 0.13, 0.04, 0.10);
+    zCloak = addSeg(zCloak, px, py, -0.58, -0.40, 0.58, -0.40, 0.26, 0.26, 0.06, 0.08);
+    zBeard = addSeg(zBeard, px, py, 0.0, -0.12, 0.0, -0.42, 0.21, 0.13, 0.04, 0.10);
   }
 
-  // Deep-set eye hollows + sharp catchlight pupils (scaled for 28-col grid!)
+  let zHead = zFace;
+  let tone = TONE_SKIN;
+  if (zBeard > zHead) { zHead = zBeard; tone = TONE_WOOD; }
+  if (zHeadgear > zHead) { zHead = zHeadgear; tone = headgearTone; }
+  if (zCloak > zHead) { zHead = zCloak; tone = PORTRAIT_CLOAK_TONE[trait] ?? TONE_CRIMSON; }
+
   const eyeD = Math.min(Math.hypot(px + 0.14, py - 0.12), Math.hypot(px - 0.14, py - 0.12));
   if (eyeD < 0.09) zHead -= (0.09 - eyeD) * 2.2;
-  return { z: zHead, isEye: eyeD < 0.058 };
+  const isEye = eyeD < 0.058;
+  if (isEye) tone = TONE_SNOW;
+  return { z: zHead, isEye, tone };
 }
 
 export function render3DLordPortrait(trait, cols = 28, rows = 14) {
@@ -505,10 +593,10 @@ export function render3DLordPortrait(trait, cols = 28, rows = 14) {
         let lum = clamp(0.18 + diff * 0.62 + rim * 0.24, 0.08, 0.98);
         if (cen.isEye) lum = 0.99;
         const idx = clamp(Math.round(lum * (BODY_RAMP.length - 1)), 0, BODY_RAMP.length - 1);
-        out[r][c] = [BODY_RAMP[idx], lum > 0.82 ? GRADE_BRIGHT : lum > 0.44 ? GRADE_LIT : GRADE_DIM];
+        out[r][c] = [BODY_RAMP[idx], lum > 0.82 ? GRADE_BRIGHT : lum > 0.44 ? GRADE_LIT : GRADE_DIM, cen.tone];
       } else {
         const haze = Math.max(0, 0.22 - Math.hypot(wx * 0.45, wy * 0.45) * 0.14);
-        if (haze > 0.09) out[r][c] = ['.', GRADE_GHOST];
+        if (haze > 0.09) out[r][c] = ['.', GRADE_GHOST, TONE_RIVER];
       }
     }
   }
@@ -534,7 +622,7 @@ function mirrorCellGrid(cellGrid) {
     row
       .slice()
       .reverse()
-      .map(([ch, g]) => [MIRROR_CHAR[ch] || ch, g])
+      .map(([ch, g, t]) => (t !== undefined ? [MIRROR_CHAR[ch] || ch, g, t] : [MIRROR_CHAR[ch] || ch, g]))
   );
 }
 
@@ -631,7 +719,7 @@ export function ensureHalftoneCache() {
   return BAKED;
 }
 
-export function stampCellGrid(buf, x, y, cellGrid, bounds = null, gradeBoost = 0) {
+export function stampCellGrid(buf, x, y, cellGrid, bounds = null, gradeBoost = 0, toneRemap = null) {
   const rows = buf.length;
   const cols = rows > 0 ? buf[0].length : 0;
   const x0 = bounds ? bounds.x0 : 0;
@@ -646,10 +734,14 @@ export function stampCellGrid(buf, x, y, cellGrid, bounds = null, gradeBoost = 0
     for (let c = 0; c < row.length; c++) {
       const tx = x + c;
       if (tx < x0 || tx > x1) continue;
-      const [ch, g] = row[c];
+      const [ch, g, rawTone] = row[c];
       if (ch === ' ') continue;
       const ng = clamp(g + gradeBoost, GRADE_GHOST, GRADE_BRIGHT);
-      buf[ty][tx] = [sanitizeGlyph(ch), ng];
+      const tone =
+        toneRemap && rawTone !== undefined && toneRemap[rawTone] !== undefined
+          ? toneRemap[rawTone]
+          : rawTone ?? TONE_AMBER;
+      buf[ty][tx] = [sanitizeGlyph(ch), ng, tone];
     }
   }
 }

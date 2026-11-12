@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict';
 import { CrtCanvasRenderer } from '../src/engine/crtRenderer.js';
-import { GRID_COLS, GRID_ROWS } from '../src/engine/palette.js';
+import { TONE_PALETTES, GRID_COLS, GRID_ROWS } from '../src/engine/palette.js';
 import { computeHouseBetrayalUtility } from '../src/war/ai.js';
 import { WarAudio } from '../src/war/audio.js';
 import { IroncrownGame } from '../src/war/game.js';
@@ -13,17 +13,23 @@ import { HOLD_TEMPLATES, REALM_H, REALM_W, TERRAIN_META, createRealmGrid } from 
 
 function assertStrictAsciiFrame(buf, label) {
   assert.equal(buf.length, GRID_ROWS, `${label}: expected ${GRID_ROWS} rows`);
+  const tones = new Set();
   for (let r = 0; r < GRID_ROWS; r++) {
     assert.equal(buf[r].length, GRID_COLS, `${label} row ${r}: expected ${GRID_COLS} cols`);
     for (let c = 0; c < GRID_COLS; c++) {
-      const [ch, grade] = buf[r][c];
+      const [ch, grade, tone] = buf[r][c];
       assert.equal(typeof ch, 'string');
       assert.equal(ch.length, 1, `${label} (${r},${c}) must be 1 char, got ${JSON.stringify(ch)}`);
       const code = ch.charCodeAt(0);
       assert.ok(code >= 32 && code <= 126, `${label} (${r},${c}) non-ASCII char ${code}`);
       assert.ok(Number.isInteger(grade) && grade >= 0 && grade <= 4, `${label} invalid grade ${grade}`);
+      if (tone !== undefined) {
+        assert.ok(Number.isInteger(tone) && tone >= 0 && tone < TONE_PALETTES.length, `${label} invalid tone ${tone}`);
+        tones.add(tone);
+      }
     }
   }
+  return tones;
 }
 
 // 1. Strategic Realm BFS: Every Keep & Village must be reachable from Blackpike Keep
@@ -183,8 +189,14 @@ const mockCanvas = {
 const renderer = new CrtCanvasRenderer(mockCanvas);
 const audio = new WarAudio();
 audio.play('horn');
+const titleTones = assertStrictAsciiFrame(new IroncrownGame({ storage, seed: 717 }).renderBuffer(), 'title_color');
+assert.ok(titleTones.size >= 8, `Expected rich multi-color title frame (>=8 tones), got ${titleTones.size}`);
+assert.equal(renderer.colorEnabled, true, 'Multi-color mode should default to enabled');
 renderer.draw(g2.renderBuffer());
 assert.ok(atlasDraws > 200, 'CRT renderer must draw Ironcrown grid');
+assert.equal(renderer.toggleColor(), false, 'toggleColor should switch to monochrome P3 CRT');
+renderer.draw(g2.renderBuffer());
+assert.equal(renderer.toggleColor(), true, 'toggleColor should restore full color mode');
 
 console.log(JSON.stringify({
   ironcrownWebTests: 'PASS',
@@ -192,6 +204,7 @@ console.log(JSON.stringify({
   villagesReachable: villages.length,
   siegeGateBreached: true,
   highcrownVictory: true,
+  titleDistinctTones: titleTones.size,
   atlasDraws,
 }));
 

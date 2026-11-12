@@ -1,4 +1,4 @@
-"""Optional pygame-ce Amber P3 Phosphor window renderer for IRONCROWN."""
+"""Optional pygame-ce Multi-Color & Amber P3 Phosphor window renderer for IRONCROWN."""
 
 from __future__ import annotations
 
@@ -8,16 +8,19 @@ from ironcrown.engine import IroncrownGame
 from ironcrown.palette import (
     AMBER_RGB,
     BG_RGB,
+    FULL_COLOR_BG_RGB,
     GRADE_BRIGHT,
     GRADE_LIT,
     GRID_COLS,
     GRID_ROWS,
+    TONE_AMBER,
+    TONE_RGB,
     sanitize_glyph,
 )
 
 
 def run_pygame(game: IroncrownGame) -> None:
-    """Launch IRONCROWN in an optional pygame-ce Amber CRT window."""
+    """Launch IRONCROWN in an optional pygame-ce CRT window (Multi-Color / Amber toggle [O])."""
     try:
         import pygame
     except ImportError:
@@ -31,13 +34,16 @@ def run_pygame(game: IroncrownGame) -> None:
     pygame.display.set_caption("IRONCROWN — The Realm in Winter")
     font = pygame.font.SysFont("menlo,consolas,dejavusansmono,monospace", 16)
     clock = pygame.time.Clock()
-    glyph_cache: dict[tuple[str, int], object] = {}
+    color_enabled = True
+    glyph_cache: dict[tuple[str, int, int], object] = {}
 
-    def get_glyph_surf(ch: str, grade: int):
-        key = (ch, grade)
+    def get_glyph_surf(ch: str, grade: int, tone: int):
+        active_tone = tone if color_enabled else TONE_AMBER
+        key = (ch, grade, active_tone)
         surf = glyph_cache.get(key)
         if surf is None:
-            surf = font.render(ch, True, AMBER_RGB[grade])
+            rgb_map = TONE_RGB.get(active_tone, AMBER_RGB)
+            surf = font.render(ch, True, rgb_map[grade])
             glyph_cache[key] = surf
         return surf
 
@@ -53,28 +59,33 @@ def run_pygame(game: IroncrownGame) -> None:
                 running = False
             elif ev.type == pygame.KEYDOWN:
                 action = _map_pygame_key(ev.key, game.screen)
-                if action and not game.handle_action(action):
+                if action == "toggle_color":
+                    color_enabled = not color_enabled
+                elif action and not game.handle_action(action):
                     running = False
 
         game.update(dt)
         buf = game.render_buffer()
-        screen.fill(BG_RGB)
+        tone_buf = getattr(game, "tone_buffer", None)
+        screen.fill(FULL_COLOR_BG_RGB if color_enabled else BG_RGB)
         for r in range(GRID_ROWS):
             py = r * cell_h
             row_cells = buf[r]
+            row_tones = tone_buf[r] if tone_buf is not None else None
             for c in range(GRID_COLS):
                 ch, grade = row_cells[c]
                 if ch == " ":
                     continue
                 g = sanitize_glyph(ch)
+                tone = row_tones[c] if (color_enabled and row_tones is not None) else TONE_AMBER
                 px = c * cell_w
                 if grade == GRADE_BRIGHT:
-                    halo = get_glyph_surf(g, GRADE_LIT)
+                    halo = get_glyph_surf(g, GRADE_LIT, tone)
                     halo.set_alpha(95)
                     screen.blit(halo, (px - 1, py))
                     screen.blit(halo, (px + 1, py))
                     halo.set_alpha(255)
-                screen.blit(get_glyph_surf(g, grade), (px, py))
+                screen.blit(get_glyph_surf(g, grade, tone), (px, py))
 
         screen.blit(scanline, (0, 0))
         pygame.display.flip()
@@ -95,6 +106,7 @@ def _map_pygame_key(key: int, screen: str) -> str:
         pygame.K_LEFT: "move_w",
         pygame.K_d: "move_e",
         pygame.K_RIGHT: "move_e",
+        pygame.K_o: "toggle_color",
         pygame.K_j: "strike",
         pygame.K_f: "parry",
         pygame.K_k: "parry",

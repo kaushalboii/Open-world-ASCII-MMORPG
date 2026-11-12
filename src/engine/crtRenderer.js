@@ -5,11 +5,13 @@
  */
 
 import {
+  FULL_COLOR_BG,
   GRADE_BRIGHT,
   GRADE_GHOST,
   GRID_COLS,
   GRID_ROWS,
   PHOSPHOR_THEMES,
+  TONE_PALETTES,
 } from './palette.js';
 
 const FONT_STACK = "16px 'IBM Plex Mono', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace";
@@ -31,18 +33,22 @@ export class CrtCanvasRenderer {
     this.logicalW = GRID_COLS * this.cellW;
     this.logicalH = GRID_ROWS * this.cellH;
     this.crtEnabled = true;
+    this.colorEnabled = true;
     this.themeIndex = 0;
     this.dpr = 1;
     this.vignette = null;
     this.atlas = null;
     this.glowSprite = null;
     this.crtOverlay = null;
+    this.toneAtlases = new Map();
+    this.toneGlows = new Map();
     this._brightQueue = [];
     this.resize();
 
     if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
       document.fonts.ready
         .then(() => {
+          this.toneAtlases.clear();
           this._buildAtlas();
         })
         .catch(() => {});
@@ -51,6 +57,11 @@ export class CrtCanvasRenderer {
 
   getTheme() {
     return PHOSPHOR_THEMES[this.themeIndex] || PHOSPHOR_THEMES[0];
+  }
+
+  toggleColor() {
+    this.colorEnabled = !this.colorEnabled;
+    return this.colorEnabled;
   }
 
   cyclePhosphor() {
@@ -74,13 +85,9 @@ export class CrtCanvasRenderer {
     return { canvas: c, ctx: octx };
   }
 
-  _buildAtlas() {
+  _buildAtlasForPalette(grades, glowRgba) {
     const off = this._createOffscreenCanvas(ASCII_COUNT * this.slotW, 6 * this.slotH, this.dpr);
-    if (!off) {
-      this.atlas = null;
-      return;
-    }
-    const theme = this.getTheme();
+    if (!off) return null;
     const { canvas, ctx } = off;
     ctx.clearRect(0, 0, ASCII_COUNT * this.slotW, 6 * this.slotH);
     ctx.textBaseline = 'top';
@@ -89,9 +96,9 @@ export class CrtCanvasRenderer {
     for (let row = GRADE_GHOST; row <= GLOW_ROW; row++) {
       const grade = row === GLOW_ROW ? GRADE_BRIGHT : row;
       const py = row * this.slotH + this.pad + 2;
-      ctx.fillStyle = theme.grades[grade];
+      ctx.fillStyle = grades[grade];
       if (row === GLOW_ROW) {
-        ctx.shadowColor = theme.glowRgba;
+        ctx.shadowColor = glowRgba;
         ctx.shadowBlur = 7;
       } else {
         ctx.shadowBlur = 0;
@@ -103,25 +110,57 @@ export class CrtCanvasRenderer {
       }
     }
     ctx.shadowBlur = 0;
-    this.atlas = canvas;
+    return canvas;
   }
 
-  _buildGlowSprite() {
+  _buildAtlas() {
+    const theme = this.getTheme();
+    this.atlas = this._buildAtlasForPalette(theme.grades, theme.glowRgba);
+  }
+
+  _buildGlowSpriteForPalette(haloCore, haloMid) {
     const size = 48;
     const off = this._createOffscreenCanvas(size, size, this.dpr);
-    if (!off) {
-      this.glowSprite = null;
-      return;
-    }
-    const theme = this.getTheme();
+    if (!off) return null;
     const { canvas, ctx } = off;
     const g = ctx.createRadialGradient(size * 0.5, size * 0.5, 2, size * 0.5, size * 0.5, size * 0.5);
-    g.addColorStop(0, theme.haloCore);
-    g.addColorStop(0.45, theme.haloMid);
+    g.addColorStop(0, haloCore);
+    g.addColorStop(0.45, haloMid);
     g.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
-    this.glowSprite = canvas;
+    return canvas;
+  }
+
+  _buildGlowSprite() {
+    const theme = this.getTheme();
+    this.glowSprite = this._buildGlowSpriteForPalette(theme.haloCore, theme.haloMid);
+  }
+
+  _getToneAtlas(tone) {
+    if (!this.colorEnabled || tone == null || tone < 0 || tone >= TONE_PALETTES.length) {
+      return this.atlas;
+    }
+    let a = this.toneAtlases.get(tone);
+    if (!a) {
+      const pal = TONE_PALETTES[tone];
+      a = this._buildAtlasForPalette(pal.grades, pal.glowRgba);
+      if (a) this.toneAtlases.set(tone, a);
+    }
+    return a || this.atlas;
+  }
+
+  _getToneGlow(tone) {
+    if (!this.colorEnabled || tone == null || tone < 0 || tone >= TONE_PALETTES.length) {
+      return this.glowSprite;
+    }
+    let gs = this.toneGlows.get(tone);
+    if (!gs) {
+      const pal = TONE_PALETTES[tone];
+      gs = this._buildGlowSpriteForPalette(pal.haloCore, pal.haloMid);
+      if (gs) this.toneGlows.set(tone, gs);
+    }
+    return gs || this.glowSprite;
   }
 
   _buildCrtOverlay() {
@@ -164,6 +203,8 @@ export class CrtCanvasRenderer {
     grad.addColorStop(1, 'rgba(3, 1, 0, 0.42)');
     this.vignette = grad;
 
+    this.toneAtlases.clear();
+    this.toneGlows.clear();
     this._buildAtlas();
     this._buildGlowSprite();
     this._buildCrtOverlay();
@@ -180,10 +221,22 @@ export class CrtCanvasRenderer {
     return { col, row };
   }
 
+  _bufferHasColor(buffer) {
+    if (!this.colorEnabled) return false;
+    for (let r = 0; r < GRID_ROWS; r++) {
+      const row = buffer[r];
+      for (let c = 0; c < GRID_COLS; c++) {
+        if (row[c][2] !== undefined) return true;
+      }
+    }
+    return false;
+  }
+
   draw(buffer) {
     const ctx = this.ctx;
     const theme = this.getTheme();
-    ctx.fillStyle = theme.bg;
+    const useMultiColor = this._bufferHasColor(buffer);
+    ctx.fillStyle = useMultiColor ? FULL_COLOR_BG : theme.bg;
     ctx.fillRect(0, 0, this.logicalW, this.logicalH);
 
     if (this.atlas) {
@@ -228,43 +281,50 @@ export class CrtCanvasRenderer {
       const rowCells = buffer[r];
       const dy = r * cellH;
       for (let c = 0; c < GRID_COLS; c++) {
-        const [rawCh, g] = rowCells[c];
-        const ch = normalizeGlyph(rawCh);
+        const cell = rowCells[c];
+        const ch = normalizeGlyph(cell[0]);
         if (ch === ' ') continue;
+        const g = cell[1];
+        const tone = cell[2];
         let idx = ch.charCodeAt(0) - ASCII_MIN;
         if (idx <= 0 || idx >= ASCII_COUNT) idx = 14;
         if (g === GRADE_BRIGHT) {
-          brightQueue.push(c, r, idx, ch);
+          brightQueue.push(c, r, idx, ch, tone);
           continue;
         }
+        const atlas = tone !== undefined && this.colorEnabled ? this._getToneAtlas(tone) : this.atlas;
         const sx = (idx * slotW + pad) * dpr;
         const sy = (g >= 0 && g < GRADE_BRIGHT ? g : 3) * slotH * dpr + padDpr;
-        ctx.drawImage(this.atlas, sx, sy, cw, chPx, c * cellW, dy, cellW, cellH);
+        ctx.drawImage(atlas, sx, sy, cw, chPx, c * cellW, dy, cellW, cellH);
       }
     }
 
     // Blit subtle radial phosphor halation behind emissive Grade-4 symbols in playfield
     if (this.crtEnabled && this.glowSprite) {
-      for (let i = 0; i < brightQueue.length; i += 4) {
+      for (let i = 0; i < brightQueue.length; i += 5) {
         const c = brightQueue[i];
         const r = brightQueue[i + 1];
         const ch = brightQueue[i + 3];
+        const tone = brightQueue[i + 4];
         if (r >= 1 && r < GRID_ROWS - 4 && EMISSIVE_GLYPHS.has(ch)) {
+          const glow = tone !== undefined && this.colorEnabled ? this._getToneGlow(tone) : this.glowSprite;
           const cx = c * cellW + cellW * 0.5;
           const cy = r * cellH + cellH * 0.5;
-          ctx.drawImage(this.glowSprite, cx - 24, cy - 24, 48, 48);
+          ctx.drawImage(glow, cx - 24, cy - 24, 48, 48);
         }
       }
     }
 
     const brightSy = brightRow * slotH * dpr;
-    for (let i = 0; i < brightQueue.length; i += 4) {
+    for (let i = 0; i < brightQueue.length; i += 5) {
       const c = brightQueue[i];
       const r = brightQueue[i + 1];
       const idx = brightQueue[i + 2];
+      const tone = brightQueue[i + 4];
+      const atlas = tone !== undefined && this.colorEnabled ? this._getToneAtlas(tone) : this.atlas;
       const sx = idx * slotW * dpr;
       ctx.drawImage(
-        this.atlas,
+        atlas,
         this.crtEnabled ? sx : sx + padDpr,
         this.crtEnabled ? brightSy : brightSy + padDpr,
         this.crtEnabled ? sw : cw,
@@ -278,36 +338,50 @@ export class CrtCanvasRenderer {
   }
 
   _drawFallback(ctx, buffer, theme) {
+    let lastStyle = '';
+    ctx.shadowBlur = 0;
     for (let grade = GRADE_GHOST; grade < GRADE_BRIGHT; grade++) {
-      ctx.fillStyle = theme.grades[grade];
-      ctx.shadowBlur = 0;
       for (let r = 0; r < GRID_ROWS; r++) {
         const y = r * this.cellH + 2;
         const rowCells = buffer[r];
         for (let c = 0; c < GRID_COLS; c++) {
-          const [rawCh, g] = rowCells[c];
-          const ch = normalizeGlyph(rawCh);
-          if (g === grade && ch !== ' ') {
+          const cell = rowCells[c];
+          const ch = normalizeGlyph(cell[0]);
+          if (cell[1] === grade && ch !== ' ') {
+            const tone = cell[2];
+            const pal = tone !== undefined && this.colorEnabled && TONE_PALETTES[tone] ? TONE_PALETTES[tone] : theme;
+            const style = pal.grades[grade];
+            if (style !== lastStyle) {
+              ctx.fillStyle = style;
+              lastStyle = style;
+            }
             ctx.fillText(ch, c * this.cellW, y);
           }
         }
       }
     }
 
-    ctx.fillStyle = theme.grades[GRADE_BRIGHT];
-    if (this.crtEnabled) {
-      ctx.shadowColor = theme.glowRgba;
-      ctx.shadowBlur = 6;
-    } else {
-      ctx.shadowBlur = 0;
-    }
+    lastStyle = '';
     for (let r = 0; r < GRID_ROWS; r++) {
       const y = r * this.cellH + 2;
       const rowCells = buffer[r];
       for (let c = 0; c < GRID_COLS; c++) {
-        const [rawCh, g] = rowCells[c];
-        const ch = normalizeGlyph(rawCh);
-        if (g === GRADE_BRIGHT && ch !== ' ') {
+        const cell = rowCells[c];
+        const ch = normalizeGlyph(cell[0]);
+        if (cell[1] === GRADE_BRIGHT && ch !== ' ') {
+          const tone = cell[2];
+          const pal = tone !== undefined && this.colorEnabled && TONE_PALETTES[tone] ? TONE_PALETTES[tone] : theme;
+          const style = pal.grades[GRADE_BRIGHT];
+          if (style !== lastStyle) {
+            ctx.fillStyle = style;
+            if (this.crtEnabled) {
+              ctx.shadowColor = pal.glowRgba;
+              ctx.shadowBlur = 6;
+            } else {
+              ctx.shadowBlur = 0;
+            }
+            lastStyle = style;
+          }
           ctx.fillText(ch, c * this.cellW, y);
         }
       }

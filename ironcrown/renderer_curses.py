@@ -1,10 +1,10 @@
-"""Curses terminal Amber P3 Phosphor CRT renderer & input loop for IRONCROWN."""
+"""Curses terminal Multi-Color Medieval & Amber P3 Phosphor CRT renderer for IRONCROWN."""
 
 from __future__ import annotations
 
 import curses
 import time
-from typing import Dict
+from typing import Dict, Tuple
 
 from ironcrown.engine import IroncrownGame
 from ironcrown.palette import (
@@ -15,12 +15,27 @@ from ironcrown.palette import (
     GRADE_MIST,
     GRID_COLS,
     GRID_ROWS,
+    TONE_AMBER,
+    TONE_CRIMSON,
+    TONE_FIRE,
+    TONE_FOREST,
+    TONE_HORSE,
+    TONE_PARCHMENT,
+    TONE_RIVER,
+    TONE_SKIN,
+    TONE_SNOW,
+    TONE_STEEL,
+    TONE_STONE,
+    TONE_VIOLET,
+    TONE_WARHORSE,
+    TONE_WOOD,
     XTERM_AMBER,
+    XTERM_TONES,
     sanitize_glyph,
 )
 
 
-def _setup_amber_pairs() -> Dict[int, int]:
+def _setup_color_pairs() -> Tuple[Dict[int, int], Dict[Tuple[int, int], int]]:
     curses.start_color()
     try:
         curses.use_default_colors()
@@ -28,25 +43,87 @@ def _setup_amber_pairs() -> Dict[int, int]:
     except curses.error:
         bg = curses.COLOR_BLACK
 
-    attrs: Dict[int, int] = {}
-    if getattr(curses, "COLORS", 8) >= 256:
+    amber_attrs: Dict[int, int] = {}
+    tone_attrs: Dict[Tuple[int, int], int] = {}
+    max_colors = getattr(curses, "COLORS", 8)
+    max_pairs = getattr(curses, "COLOR_PAIRS", 64)
+
+    if max_colors >= 256 and max_pairs >= 72:
+        try:
+            pair_id = 1
+            for tone, grade_map in XTERM_TONES.items():
+                for grade in (GRADE_GHOST, GRADE_MIST, GRADE_DIM, GRADE_LIT, GRADE_BRIGHT):
+                    curses.init_pair(pair_id, grade_map[grade], 232)
+                    attr = curses.color_pair(pair_id) | (curses.A_BOLD if grade == GRADE_BRIGHT else 0)
+                    tone_attrs[(tone, grade)] = attr
+                    if tone == TONE_AMBER:
+                        amber_attrs[grade] = attr
+                    pair_id += 1
+            return amber_attrs, tone_attrs
+        except curses.error:
+            amber_attrs.clear()
+            tone_attrs.clear()
+
+    if max_colors >= 256:
         try:
             for idx, grade in enumerate((GRADE_GHOST, GRADE_MIST, GRADE_DIM, GRADE_LIT, GRADE_BRIGHT), start=1):
                 curses.init_pair(idx, XTERM_AMBER[grade], 232)
-                attrs[grade] = curses.color_pair(idx) | (curses.A_BOLD if grade == GRADE_BRIGHT else 0)
-            return attrs
+                amber_attrs[grade] = curses.color_pair(idx) | (curses.A_BOLD if grade == GRADE_BRIGHT else 0)
+            for tone in XTERM_TONES:
+                for g in range(5):
+                    tone_attrs[(tone, g)] = amber_attrs[g]
+            return amber_attrs, tone_attrs
         except curses.error:
             pass
 
-    curses.init_pair(1, curses.COLOR_YELLOW, bg)
-    curses.init_pair(2, curses.COLOR_WHITE, bg)
-    base = curses.color_pair(1)
-    attrs[GRADE_GHOST] = base | curses.A_DIM
-    attrs[GRADE_MIST] = base | curses.A_DIM
-    attrs[GRADE_DIM] = base
-    attrs[GRADE_LIT] = base | curses.A_BOLD
-    attrs[GRADE_BRIGHT] = curses.color_pair(2) | curses.A_BOLD
-    return attrs
+    base_colors = [
+        ("yellow", curses.COLOR_YELLOW),
+        ("red", curses.COLOR_RED),
+        ("green", curses.COLOR_GREEN),
+        ("cyan", curses.COLOR_CYAN),
+        ("white", curses.COLOR_WHITE),
+        ("magenta", curses.COLOR_MAGENTA),
+    ]
+    base_pairs: Dict[str, int] = {}
+    for idx, (cname, cval) in enumerate(base_colors, start=1):
+        if idx >= max_pairs:
+            break
+        try:
+            curses.init_pair(idx, cval, bg)
+            base_pairs[cname] = curses.color_pair(idx)
+        except curses.error:
+            pass
+
+    yb = base_pairs.get("yellow", 0)
+    wb = base_pairs.get("white", yb)
+    amber_attrs[GRADE_GHOST] = yb | curses.A_DIM
+    amber_attrs[GRADE_MIST] = yb | curses.A_DIM
+    amber_attrs[GRADE_DIM] = yb
+    amber_attrs[GRADE_LIT] = yb | curses.A_BOLD
+    amber_attrs[GRADE_BRIGHT] = wb | curses.A_BOLD
+
+    tone_to_base = {
+        TONE_AMBER: "yellow",
+        TONE_CRIMSON: "red",
+        TONE_STEEL: "cyan",
+        TONE_HORSE: "yellow",
+        TONE_WARHORSE: "white",
+        TONE_FOREST: "green",
+        TONE_RIVER: "cyan",
+        TONE_SNOW: "white",
+        TONE_STONE: "white",
+        TONE_SKIN: "red",
+        TONE_FIRE: "red",
+        TONE_VIOLET: "magenta",
+        TONE_PARCHMENT: "white",
+        TONE_WOOD: "yellow",
+    }
+    for tone, cname in tone_to_base.items():
+        bp = base_pairs.get(cname, yb)
+        for grade in (GRADE_GHOST, GRADE_MIST, GRADE_DIM, GRADE_LIT, GRADE_BRIGHT):
+            mod = curses.A_DIM if grade <= GRADE_MIST else (curses.A_BOLD if grade >= GRADE_LIT else 0)
+            tone_attrs[(tone, grade)] = bp | mod
+    return amber_attrs, tone_attrs
 
 
 def _map_key(ch: int, screen: str) -> str:
@@ -60,6 +137,8 @@ def _map_key(ch: int, screen: str) -> str:
         return "move_e"
     if ch in (10, 13, curses.KEY_ENTER):
         return "confirm"
+    if ch in (ord("o"), ord("O")):
+        return "toggle_color"
     if ch in (ord("j"), ord("J")):
         return "strike"
     if ch in (ord("z"), ord("Z")):
@@ -96,13 +175,14 @@ def _map_key(ch: int, screen: str) -> str:
 
 
 def run_curses(game: IroncrownGame) -> None:
-    """Launch IRONCROWN inside a 256-color Amber CRT terminal."""
+    """Launch IRONCROWN inside a 256-color Multi-Color / Amber CRT terminal."""
 
     def _loop(stdscr) -> None:
         curses.curs_set(0)
         stdscr.nodelay(True)
         stdscr.keypad(True)
-        attrs = _setup_amber_pairs()
+        amber_attrs, tone_attrs = _setup_color_pairs()
+        color_enabled = True
         last = time.monotonic()
 
         while True:
@@ -115,18 +195,21 @@ def run_curses(game: IroncrownGame) -> None:
                 if ch == -1:
                     break
                 action = _map_key(ch, game.screen)
-                if action and not game.handle_action(action):
+                if action == "toggle_color":
+                    color_enabled = not color_enabled
+                elif action and not game.handle_action(action):
                     return
 
             game.update(dt)
             buf = game.render_buffer()
+            tone_buf = getattr(game, "tone_buffer", None)
             max_y, max_x = stdscr.getmaxyx()
             stdscr.erase()
 
             if max_y < 16 or max_x < 50:
                 msg = f"Enlarge terminal (min 50x16, recommended {GRID_COLS}x{GRID_ROWS})"
                 try:
-                    stdscr.addstr(0, 0, msg[: max(0, max_x - 1)], attrs[GRADE_LIT])
+                    stdscr.addstr(0, 0, msg[: max(0, max_x - 1)], amber_attrs[GRADE_LIT])
                 except curses.error:
                     pass
             else:
@@ -136,16 +219,21 @@ def run_curses(game: IroncrownGame) -> None:
                 off_x = max(0, (max_x - draw_cols) // 2)
                 for r in range(draw_rows):
                     row_cells = buf[r]
+                    row_tones = tone_buf[r] if tone_buf is not None else None
                     col = 0
                     while col < draw_cols:
                         grade = row_cells[col][1]
+                        tone = row_tones[col] if (color_enabled and row_tones is not None) else TONE_AMBER
                         run_chars = []
                         start_col = col
-                        while col < draw_cols and row_cells[col][1] == grade:
+                        while col < draw_cols and row_cells[col][1] == grade and (
+                            (row_tones[col] if (color_enabled and row_tones is not None) else TONE_AMBER) == tone
+                        ):
                             run_chars.append(sanitize_glyph(row_cells[col][0]))
                             col += 1
+                        attr = tone_attrs.get((tone, grade), amber_attrs.get(grade, amber_attrs[GRADE_DIM])) if color_enabled else amber_attrs.get(grade, amber_attrs[GRADE_DIM])
                         try:
-                            stdscr.addstr(off_y + r, off_x + start_col, "".join(run_chars), attrs.get(grade, attrs[GRADE_DIM]))
+                            stdscr.addstr(off_y + r, off_x + start_col, "".join(run_chars), attr)
                         except curses.error:
                             pass
 

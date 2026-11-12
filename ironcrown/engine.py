@@ -23,6 +23,7 @@ from ironcrown.ascii_art import (
     get_baked_portrait,
     get_baked_steed_panorama,
     get_baked_title_hero,
+    house_tone_id,
     pick_crest_for_dialogue,
     render_battle_scenery,
     render_campaign_march_vista,
@@ -50,6 +51,17 @@ from ironcrown.palette import (
     HINT_ROW,
     LOG_ROWS,
     LOG_TOP,
+    TONE_AMBER,
+    TONE_CRIMSON,
+    TONE_FIRE,
+    TONE_FOREST,
+    TONE_HORSE,
+    TONE_PARCHMENT,
+    TONE_RIVER,
+    TONE_SNOW,
+    TONE_STEEL,
+    TONE_STONE,
+    TONE_WARHORSE,
     VIEW_ROWS,
     VIEW_TOP,
     fit_line,
@@ -99,6 +111,7 @@ class IroncrownGame:
         self.projectiles: List[Dict[str, Any]] = []
         self.pulse_waves: List[Dict[str, Any]] = []
         self.flags: Dict[str, Any] = {}
+        self.tone_buffer: List[List[int]] = [[TONE_PARCHMENT for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
 
         self.grid, self.villages = create_realm_grid()
         self._init_fresh_state()
@@ -951,31 +964,50 @@ class IroncrownGame:
 
     # ==================== RENDERING (104x38 PRINTABLE ASCII) ====================
 
-    def _put_str(self, buf: List[List[Tuple[str, int]]], x: int, y: int, text: str, grade: int = GRADE_LIT) -> None:
+    def _set_cell(self, buf: List[List[Tuple[str, int]]], x: int, y: int, ch: str, grade: int, tone: int) -> None:
+        if 0 <= y < GRID_ROWS and 0 <= x < GRID_COLS:
+            buf[y][x] = (sanitize_glyph(ch), grade)
+            self.tone_buffer[y][x] = tone
+
+    def _put_str(self, buf: List[List[Tuple[str, int]]], x: int, y: int, text: str, grade: int = GRADE_LIT, tone: int = TONE_PARCHMENT) -> None:
         if not (0 <= y < GRID_ROWS):
             return
         for i, ch in enumerate(text):
             c = x + i
             if 0 <= c < GRID_COLS:
                 buf[y][c] = (sanitize_glyph(ch), grade)
+                self.tone_buffer[y][c] = tone
 
-    def _draw_frame(self, buf: List[List[Tuple[str, int]]], x: int, y: int, w: int, h: int, title: str = "", bg: int = GRADE_DIM, tg: int = GRADE_BRIGHT) -> None:
+    def _draw_frame(
+        self,
+        buf: List[List[Tuple[str, int]]],
+        x: int,
+        y: int,
+        w: int,
+        h: int,
+        title: str = "",
+        bg: int = GRADE_DIM,
+        tg: int = GRADE_BRIGHT,
+        border_tone: int = TONE_STONE,
+        title_tone: int = TONE_AMBER,
+    ) -> None:
         for cx in range(x + 1, x + w - 1):
-            buf[y][cx] = ("-", bg)
-            buf[y + h - 1][cx] = ("-", bg)
+            self._set_cell(buf, cx, y, "-", bg, border_tone)
+            self._set_cell(buf, cx, y + h - 1, "-", bg, border_tone)
         for ry in range(y + 1, y + h - 1):
-            buf[ry][x] = ("|", bg)
-            buf[ry][x + w - 1] = ("|", bg)
-        buf[y][x] = ("+", bg)
-        buf[y][x + w - 1] = ("+", bg)
-        buf[y + h - 1][x] = ("+", bg)
-        buf[y + h - 1][x + w - 1] = ("+", bg)
+            self._set_cell(buf, x, ry, "|", bg, border_tone)
+            self._set_cell(buf, x + w - 1, ry, "|", bg, border_tone)
+        self._set_cell(buf, x, y, "+", bg, border_tone)
+        self._set_cell(buf, x + w - 1, y, "+", bg, border_tone)
+        self._set_cell(buf, x, y + h - 1, "+", bg, border_tone)
+        self._set_cell(buf, x + w - 1, y + h - 1, "+", bg, border_tone)
         if title:
             t = f"[ {title} ]"
-            self._put_str(buf, x + max(2, (w - len(t)) // 2), y, t, tg)
+            self._put_str(buf, x + max(2, (w - len(t)) // 2), y, t, tg, title_tone)
 
     def render_buffer(self) -> List[List[Tuple[str, int]]]:
         buf: List[List[Tuple[str, int]]] = [[(" ", GRADE_GHOST) for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
+        self.tone_buffer = [[TONE_PARCHMENT for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
         if self.screen == "title":
             self._render_title(buf)
         elif self.screen == "steed":
@@ -990,24 +1022,33 @@ class IroncrownGame:
             self._render_battle(buf)
         else:
             self._render_campaign(buf)
+        if self.shake > 0 and self.screen == "battle":
+            sx = 1 if int(self.clock * 45) % 2 == 0 else -1
+            for r in range(VIEW_TOP + 1, VIEW_TOP + VIEW_ROWS - 1):
+                if sx > 0:
+                    buf[r] = [(" ", GRADE_GHOST)] + buf[r][:-1]
+                    self.tone_buffer[r] = [TONE_PARCHMENT] + self.tone_buffer[r][:-1]
+                else:
+                    buf[r] = buf[r][1:] + [(" ", GRADE_GHOST)]
+                    self.tone_buffer[r] = self.tone_buffer[r][1:] + [TONE_PARCHMENT]
         return buf
 
     def _render_steed(self, buf: List[List[Tuple[str, int]]]) -> None:
-        self._draw_frame(buf, 1, 1, GRID_COLS - 2, VIEW_ROWS, "WARHORSE & ROYAL DESTRIER GALLERY", GRADE_DIM, GRADE_BRIGHT)
+        self._draw_frame(buf, 1, 1, GRID_COLS - 2, VIEW_ROWS, "WARHORSE & ROYAL DESTRIER GALLERY", GRADE_DIM, GRADE_BRIGHT, TONE_STONE, TONE_AMBER)
         season_id = SEASONS[self.campaign["season_index"]]["id"]
         pano = get_baked_steed_panorama(self.clock, season_id)
         px = 2 + max(0, (GRID_COLS - 4 - len(pano[0])) // 2)
-        stamp_cell_grid(buf, px, 2, pano, (2, 2, GRID_COLS - 3, VIEW_TOP + VIEW_ROWS - 2), 0)
-        self._put_str(buf, 4, 31, fit_line("THORNE HEAVY DESTRIER -- 3D HALFTONE RELIEF  |  Press [4] + [J/C] in Battle to Charge!", 96), GRADE_LIT)
+        stamp_cell_grid(buf, px, 2, pano, (2, 2, GRID_COLS - 3, VIEW_TOP + VIEW_ROWS - 2), 0, tone_buf=self.tone_buffer)
+        self._put_str(buf, 4, 31, fit_line("THORNE HEAVY DESTRIER -- 3D HALFTONE RELIEF  |  Press [4] + [J/C] in Battle to Charge!", 96), GRADE_LIT, TONE_PARCHMENT)
         self._render_bottom_hud(buf)
-        self._put_str(buf, 1, HINT_ROW, fit_line("[Enter / Esc / Z] Return to Command", GRID_COLS - 2), GRADE_BRIGHT)
+        self._put_str(buf, 1, HINT_ROW, fit_line("[Enter / Esc / Z] Return to Command | [O] Color Mode", GRID_COLS - 2), GRADE_BRIGHT, TONE_AMBER)
 
     def _render_title(self, buf: List[List[Tuple[str, int]]]) -> None:
-        self._draw_frame(buf, 1, 1, 66, 32, "HIGHCROWN MARCH -- WINTER 298", GRADE_DIM, GRADE_LIT)
-        stamp_cell_grid(buf, 2, 2, get_baked_title_hero(self.clock), (2, 2, 65, 31), 0)
-        self._put_str(buf, 4, 31, fit_line("War is won by full granaries, loyal spears & steel cavalry.", 60), GRADE_DIM)
+        self._draw_frame(buf, 1, 1, 66, 32, "HIGHCROWN MARCH -- WINTER 298", GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_SNOW)
+        stamp_cell_grid(buf, 2, 2, get_baked_title_hero(self.clock), (2, 2, 65, 31), 0, tone_buf=self.tone_buffer)
+        self._put_str(buf, 4, 31, fit_line("War is won by full granaries, loyal spears & steel cavalry.", 60), GRADE_DIM, TONE_PARCHMENT)
 
-        self._draw_frame(buf, 68, 1, 35, 32, "IRONCROWN", GRADE_LIT, GRADE_BRIGHT)
+        self._draw_frame(buf, 68, 1, 35, 32, "IRONCROWN", GRADE_LIT, GRADE_BRIGHT, TONE_CRIMSON, TONE_AMBER)
         masthead = [
             " ___ ____   ___  _   _ ",
             "|_ _|  _ \\ / _ \\| \\ | |",
@@ -1017,32 +1058,33 @@ class IroncrownGame:
             "       C R O W N       ",
         ]
         for i, ln in enumerate(masthead):
-            self._put_str(buf, 74, 3 + i, ln, GRADE_BRIGHT if i < 2 else GRADE_LIT)
-        self._put_str(buf, 71, 10, "THE REALM IN WINTER -- GOT WAR", GRADE_BRIGHT)
-        self._put_str(buf, 70, 12, "------------------------------", GRADE_GHOST)
-        self._put_str(buf, 70, 13, "Real Feudal War & Sieges:", GRADE_LIT)
-        self._put_str(buf, 70, 14, "* Supply Lines & Starvation", GRADE_DIM)
-        self._put_str(buf, 70, 15, "* House Oaths & Betrayals", GRADE_DIM)
-        self._put_str(buf, 70, 16, "* Animated Horses, Bows & Rams", GRADE_DIM)
-        self._put_str(buf, 70, 17, "* Frozen River Winter Strikes", GRADE_DIM)
-        self._put_str(buf, 70, 19, "------------------------------", GRADE_GHOST)
-        self._put_str(buf, 70, 21, "[Enter] Resume Saved War" if self.has_existing_save else "[Enter] Muster & Ride Out", GRADE_BRIGHT)
+            self._put_str(buf, 74, 3 + i, ln, GRADE_BRIGHT, TONE_AMBER if i == 5 else TONE_STEEL)
+        self._put_str(buf, 71, 10, "THE REALM IN WINTER -- GOT WAR", GRADE_BRIGHT, TONE_CRIMSON)
+        self._put_str(buf, 70, 12, "------------------------------", GRADE_GHOST, TONE_STONE)
+        self._put_str(buf, 70, 13, "Real Feudal War & Sieges:", GRADE_LIT, TONE_AMBER)
+        self._put_str(buf, 70, 14, "* Supply Lines & Starvation", GRADE_LIT, TONE_FOREST)
+        self._put_str(buf, 70, 15, "* House Oaths & Betrayals", GRADE_LIT, TONE_CRIMSON)
+        self._put_str(buf, 70, 16, "* Animated Horses, Bows & Rams", GRADE_LIT, TONE_STEEL)
+        self._put_str(buf, 70, 17, "* Frozen River Winter Strikes", GRADE_LIT, TONE_RIVER)
+        self._put_str(buf, 70, 19, "------------------------------", GRADE_GHOST, TONE_STONE)
+        self._put_str(buf, 70, 21, "[Enter] Resume Saved War" if self.has_existing_save else "[Enter] Muster & Ride Out", GRADE_BRIGHT, TONE_AMBER)
         if self.has_existing_save:
-            self._put_str(buf, 70, 23, "[N] Tear Old Charter (New)", GRADE_LIT)
-        self._put_str(buf, 70, 25, "[Z] Inspect War Destrier", GRADE_LIT)
-        self._put_str(buf, 70, 27, "[H] War Manual & Controls", GRADE_DIM)
-        self._put_str(buf, 1, LOG_TOP, fit_line("Archon Malcor Dray murdered your brother under truce banner and seized Highcrown Citadel.", GRID_COLS - 2), GRADE_LIT)
-        self._put_str(buf, 1, LOG_TOP + 1, fit_line("Command animated cavalry, pikemen, longbows & siege rams across Marren Valley to claim the crown.", GRID_COLS - 2), GRADE_DIM)
-        self._put_str(buf, 1, HINT_ROW, fit_line("[Enter] Begin Campaign | [Z] Full-Screen Destrier | [H] Manual", GRID_COLS - 2), GRADE_MIST)
+            self._put_str(buf, 70, 23, "[N] Tear Old Charter (New)", GRADE_LIT, TONE_PARCHMENT)
+        self._put_str(buf, 70, 25, "[Z] Inspect War Destrier", GRADE_LIT, TONE_CRIMSON)
+        self._put_str(buf, 70, 27, "[H] War Manual & Controls", GRADE_DIM, TONE_PARCHMENT)
+        self._put_str(buf, 70, 29, "[O] Full Color / P3 Amber", GRADE_MIST, TONE_STONE)
+        self._put_str(buf, 1, LOG_TOP, fit_line("Archon Malcor Dray murdered your brother under truce banner and seized Highcrown Citadel.", GRID_COLS - 2), GRADE_LIT, TONE_PARCHMENT)
+        self._put_str(buf, 1, LOG_TOP + 1, fit_line("Command animated cavalry, pikemen, longbows & siege rams across Marren Valley to claim the crown.", GRID_COLS - 2), GRADE_DIM, TONE_PARCHMENT)
+        self._put_str(buf, 1, HINT_ROW, fit_line("[Enter] Begin Campaign | [Z] Full-Screen Destrier | [O] Color Toggle | [H] Manual", GRID_COLS - 2), GRADE_MIST, TONE_STONE)
 
     def _render_campaign(self, buf: List[List[Tuple[str, int]]]) -> None:
         th = self.get_house("thorne")
         season = SEASONS[self.campaign["season_index"]]
         sup = "SUPPLY OK" if self.campaign["supplied"] else "CUT OFF!!"
         hdr = f"DAY {self.campaign['day']} {season['label']} | {th['treasury']}g | GRAIN {self.campaign['grain']} [{sup}] | MEN {self.total_men(self.player_regiments)} | HOLDS {self.held_count()}/{len(self.holds)} | HON {th['honor']} DRD {th['dread']}"
-        self._put_str(buf, 1, 0, fit_line(hdr, GRID_COLS - 2), GRADE_BRIGHT if self.campaign["supplied"] else GRADE_LIT)
+        self._put_str(buf, 1, 0, fit_line(hdr, GRID_COLS - 2), GRADE_BRIGHT, TONE_AMBER if self.campaign["supplied"] else TONE_CRIMSON)
 
-        self._draw_frame(buf, 0, VIEW_TOP, 68, 17, "REALM CAMPAIGN MAP", GRADE_DIM, GRADE_LIT)
+        self._draw_frame(buf, 0, VIEW_TOP, 68, 17, "REALM CAMPAIGN MAP", GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_AMBER)
         cam_x = max(0, min(REALM_W - 66, self.campaign["px"] - 33))
         cam_y = max(0, min(REALM_H - 15, self.campaign["py"] - 7))
         scouted = self.campaign["day"] <= self.campaign["scouted_until_day"]
@@ -1052,20 +1094,39 @@ class IroncrownGame:
             for c in range(66):
                 wx = cam_x + c
                 ch = self.grid[wy][wx]
-                g = GRADE_DIM if ch == "=" else (GRADE_LIT if ch in ("T", "v", "#") else GRADE_GHOST)
+                g = GRADE_DIM
+                tn = TONE_FOREST
+                if ch == "~":
+                    ch = "-" if ((wx + wy + int(self.clock * 2.5)) % 4 == 0) else "~"
+                    g, tn = GRADE_MIST, TONE_RIVER
+                elif ch == ".":
+                    g = GRADE_GHOST
+                    tn = TONE_SNOW if season["id"] == "winter" else TONE_FOREST
+                elif ch == "^":
+                    g, tn = GRADE_MIST, TONE_STONE
+                elif ch == "=":
+                    g, tn = GRADE_DIM, TONE_PARCHMENT
+                elif ch in ("T", "v"):
+                    g, tn = GRADE_LIT, TONE_FOREST
+                elif ch == ":":
+                    g = GRADE_BRIGHT if season["id"] == "winter" else GRADE_DIM
+                    tn = TONE_SNOW if season["id"] == "winter" else TONE_RIVER
+                elif ch == "#":
+                    g, tn = GRADE_LIT, TONE_STONE
                 for pw in self.pulse_waves:
                     if abs(math.hypot(wx - pw["x"], wy - pw["y"]) - pw["radius"]) < 1.2:
-                        ch, g = "o", GRADE_BRIGHT
-                buf[VIEW_TOP + 1 + r][1 + c] = (ch, g)
+                        ch, g, tn = "o", GRADE_BRIGHT, TONE_AMBER
+                self._set_cell(buf, 1 + c, VIEW_TOP + 1 + r, ch, g, tn)
 
         for h in self.holds:
             sx, sy = h["x"] - cam_x + 1, h["y"] - cam_y + VIEW_TOP + 1
             if 1 <= sx <= 66 and VIEW_TOP + 1 <= sy <= VIEW_TOP + 15:
                 owner = self.get_house(h["owner"])
                 sym = "*" if h["owner"] == "thorne" else ("!" if owner["treaty"] == "war" else "+")
-                buf[sy][sx] = (sym, GRADE_BRIGHT if h["owner"] == "thorne" else GRADE_LIT)
+                h_tone = TONE_AMBER if h["owner"] == "thorne" else house_tone_id(h["owner"])
+                self._set_cell(buf, sx, sy, sym, GRADE_BRIGHT, h_tone)
                 if sx + 4 <= 66:
-                    self._put_str(buf, sx + 1, sy, h["name"][:6].upper(), GRADE_BRIGHT if h["owner"] == "thorne" else GRADE_DIM)
+                    self._put_str(buf, sx + 1, sy, h["name"][:6].upper(), GRADE_BRIGHT if h["owner"] == "thorne" else GRADE_LIT, h_tone)
 
         for a in self.armies:
             if a["men"] <= 0:
@@ -1075,39 +1136,49 @@ class IroncrownGame:
                 d = abs(a["x"] - self.campaign["px"]) + abs(a["y"] - self.campaign["py"])
                 vis = scouted or d <= 14
                 h = self.get_house(a["house_id"])
-                buf[sy][sx] = (("X" if h["treaty"] == "war" else h["tag"][0]) if vis else "?", GRADE_BRIGHT if vis and h["treaty"] == "war" else GRADE_LIT)
+                glyph = ("X" if h["treaty"] == "war" else h["tag"][0]) if vis else "?"
+                self._set_cell(buf, sx, sy, glyph, GRADE_BRIGHT if (vis and h["treaty"] == "war") else GRADE_LIT, house_tone_id(a["house_id"]) if vis else TONE_STONE)
 
         psx, psy = self.campaign["px"] - cam_x + 1, self.campaign["py"] - cam_y + VIEW_TOP + 1
-        buf[psy][psx] = ("@", GRADE_BRIGHT)
+        self._set_cell(buf, psx, psy, "@", GRADE_BRIGHT, TONE_AMBER)
 
         cur_hold = self.hold_at(self.campaign["px"], self.campaign["py"])
         tile_here = self.grid[self.campaign["py"]][self.campaign["px"]]
         here_label = f"{cur_hold['name']} [{self.get_house(cur_hold['owner'])['tag']}]" if cur_hold else TERRAIN_META.get(tile_here, {}).get("name", "Wilds")
         riding_tag = "GALLOPING" if self.campaign.get("gallop_timer", 0.0) > 0 else "HALTED"
-        self._draw_frame(buf, 0, 18, 68, 15, f"KING'S ROAD: {here_label[:22].upper()} ({riding_tag})", GRADE_DIM, GRADE_BRIGHT)
-        render_campaign_march_vista(buf, self, 1, 19, 66, 13)
+        self._draw_frame(buf, 0, 18, 68, 15, f"KING'S ROAD: {here_label[:22].upper()} ({riding_tag})", GRADE_DIM, GRADE_BRIGHT, TONE_STONE, TONE_AMBER)
+        render_campaign_march_vista(buf, self, 1, 19, 66, 13, tone_buf=self.tone_buffer)
 
-        self._draw_frame(buf, 68, VIEW_TOP, 36, VIEW_ROWS, "WAR COLUMN & HOUSES", GRADE_DIM, GRADE_LIT)
-        self._put_str(buf, 70, 2, fit_line(f"LOC: {here_label}", 32), GRADE_BRIGHT)
-        self._put_str(buf, 70, 4, "[ THORNE REGIMENTS ]", GRADE_LIT)
+        self._draw_frame(buf, 68, VIEW_TOP, 36, VIEW_ROWS, "WAR COLUMN & HOUSES", GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_AMBER)
+        self._put_str(buf, 70, 2, fit_line(f"LOC: {here_label}", 32), GRADE_BRIGHT, house_tone_id(cur_hold["owner"]) if cur_hold else TONE_SNOW)
+        self._put_str(buf, 70, 4, "[ THORNE REGIMENTS ]", GRADE_LIT, TONE_AMBER)
         for i, r in enumerate(self.player_regiments):
             t = UNIT_TYPES[r["type"]]
-            self._put_str(buf, 70, 5 + i, f"[{t['code']}] {t['name'][:15].ljust(15)} {r['men']:3d} {r['morale']}%", GRADE_DIM if r["men"] > 0 else GRADE_GHOST)
-        self._put_str(buf, 70, 11, "[ GREAT HOUSES & OATHS ]", GRADE_LIT)
+            self._put_str(
+                buf,
+                70,
+                5 + i,
+                f"[{t['code']}] {t['name'][:15].ljust(15)} {r['men']:3d} {r['morale']}%",
+                GRADE_LIT if r["men"] > 0 else GRADE_GHOST,
+                TONE_PARCHMENT if r["men"] > 0 else TONE_STONE,
+            )
+        self._put_str(buf, 70, 11, "[ GREAT HOUSES & OATHS ]", GRADE_LIT, TONE_AMBER)
         for i, h in enumerate([x for x in self.houses if not x["is_player"]]):
             risk = f" R{h['betrayal_risk']}%" if (h["betrayal_risk"] > 0 and h["treaty"] != "war") else ""
-            self._put_str(buf, 70, 12 + i, fit_line(f"{h['tag']} {h['treaty'].upper():<5} {h['relation']:>4}{risk}", 32), GRADE_BRIGHT if h["treaty"] == "war" else GRADE_DIM)
+            g = GRADE_BRIGHT if h["treaty"] == "war" else (GRADE_LIT if h["betrayal_risk"] >= 52 else GRADE_DIM)
+            tn = TONE_CRIMSON if h["treaty"] == "war" else (TONE_FIRE if h["betrayal_risk"] >= 52 else house_tone_id(h["id"]))
+            self._put_str(buf, 70, 12 + i, fit_line(f"{h['tag']} {h['treaty'].upper():<5} {h['relation']:>4}{risk}", 32), g, tn)
 
-        self._put_str(buf, 70, 17, "[ NEAREST FOE BANNERS ]", GRADE_LIT)
+        self._put_str(buf, 70, 17, "[ NEAREST FOE BANNERS ]", GRADE_LIT, TONE_AMBER)
         hostiles = sorted([a for a in self.armies if a["men"] > 0], key=lambda a: abs(a["x"] - self.campaign["px"]) + abs(a["y"] - self.campaign["py"]))[:3]
         for i, a in enumerate(hostiles):
             br = bearing_label(self.campaign["px"], self.campaign["py"], a["x"], a["y"])
             men_str = f"{a['men']}m" if (scouted or abs(a["x"] - self.campaign["px"]) + abs(a["y"] - self.campaign["py"]) <= 14) else "?m"
-            self._put_str(buf, 70, 18 + i, fit_line(f"{a['lord_name'][:16]} {men_str} {br}", 32), GRADE_DIM)
+            self._put_str(buf, 70, 18 + i, fit_line(f"{a['lord_name'][:16]} {men_str} {br}", 32), GRADE_DIM, house_tone_id(a["house_id"]))
 
-        self._put_str(buf, 70, 22, "[ COMMAND ACTIONS ]", GRADE_LIT)
+        self._put_str(buf, 70, 22, "[ COMMAND ACTIONS ]", GRADE_LIT, TONE_AMBER)
         for i, c in enumerate(["[E] Keep / Siege / Village", "[C] Small Council & Spies", "[T] Dispatch Raven Pact", "[R] Camp & Forage 1 Day", "[Space] Outrider Scout", "[Z] Full-Screen Destrier", "[Tab] Map & Full Ledger", "[H] Field Manual / Help"]):
-            self._put_str(buf, 70, 23 + i, fit_line(c, 32), GRADE_MIST)
+            self._put_str(buf, 70, 23 + i, fit_line(c, 32), GRADE_DIM, TONE_PARCHMENT)
 
         if self.screen == "dialogue" and self.active_dialogue:
             self._render_dialogue_chamber(buf)
@@ -1121,33 +1192,45 @@ class IroncrownGame:
             return
         crest, house_id, p_key = pick_crest_for_dialogue(dlg)
         house = self.get_house(house_id)
+        h_tone = house_tone_id(house_id)
         bx, by, bw, bh = 4, 2, 96, 19
         bounds = (bx + 1, by + 1, bx + bw - 2, by + bh - 2)
         for r in range(by + 1, by + bh - 1):
-            self._put_str(buf, bx + 1, r, " " * (bw - 2), GRADE_GHOST)
-        self._draw_frame(buf, bx, by, bw, bh, f"PARLEY CHAMBER -- {dlg['speaker']}", GRADE_LIT, GRADE_BRIGHT)
-        self._draw_frame(buf, bx + 2, by + 1, 30, 16, house["name"].upper(), GRADE_DIM, GRADE_LIT)
-        stamp_cell_grid(buf, bx + 3, by + 2, get_baked_portrait(p_key), bounds, 0)
+            self._put_str(buf, bx + 1, r, " " * (bw - 2), GRADE_GHOST, TONE_STONE)
+        self._draw_frame(buf, bx, by, bw, bh, f"PARLEY CHAMBER -- {dlg['speaker']}", GRADE_LIT, GRADE_BRIGHT, TONE_STONE, TONE_AMBER)
+        self._draw_frame(buf, bx + 2, by + 1, 30, 16, house["name"].upper(), GRADE_DIM, GRADE_LIT, TONE_STONE, h_tone)
+        stamp_cell_grid(buf, bx + 3, by + 2, get_baked_portrait(p_key), bounds, 0, tone_buf=self.tone_buffer)
         flame = "(*)" if int(self.clock * 7) % 2 == 0 else "(^)"
-        self._put_str(buf, bx + 35, by + 2, flame, GRADE_BRIGHT)
-        self._put_str(buf, bx + 90, by + 2, flame, GRADE_BRIGHT)
-        stamp_sprite(buf, bx + 79, by + 3, crest, GRADE_DIM, bounds, {"O", "*"})
-        self._put_str(buf, bx + 40, by + 2, fit_line(dlg["speaker"], 36), GRADE_BRIGHT)
-        self._put_str(buf, bx + 35, by + 4, fit_line(f"{house['lord']} | {house['treaty'].upper()} | Rel {house['relation']}", 42), GRADE_DIM)
+        self._put_str(buf, bx + 35, by + 2, flame, GRADE_BRIGHT, TONE_FIRE)
+        self._put_str(buf, bx + 90, by + 2, flame, GRADE_BRIGHT, TONE_FIRE)
+        stamp_sprite(buf, bx + 79, by + 3, crest, GRADE_LIT, bounds, {"O", "*"}, tone_buf=self.tone_buffer, tone=h_tone, hi_tone=TONE_AMBER)
+        self._put_str(buf, bx + 40, by + 2, fit_line(dlg["speaker"], 36), GRADE_BRIGHT, h_tone)
+        self._put_str(buf, bx + 35, by + 4, fit_line(f"{house['lord']} | {house['treaty'].upper()} | Rel {house['relation']}", 42), GRADE_DIM, TONE_PARCHMENT)
+        if not house.get("is_player"):
+            risk = max(0, min(100, int(house.get("betrayal_risk", 0))))
+            filled = round(risk / 10)
+            bar = f"[{'#' * filled}{'.' * (10 - filled)}] {risk}%"
+            self._put_str(buf, bx + 35, by + 6, fit_line(f"Betrayal Risk: {bar}", 42), GRADE_BRIGHT if risk >= 50 else GRADE_LIT, TONE_CRIMSON if risk >= 50 else TONE_AMBER)
+        else:
+            self._put_str(buf, bx + 35, by + 6, fit_line(f"Honor: {house['honor']}  |  Dread: {house['dread']}  |  Silver: {house['treasury']}g", 42), GRADE_LIT, TONE_AMBER)
         line_txt = dlg["line_fn"](self) if "line_fn" in dlg else ""
         for i, ln in enumerate(wrap_lines(line_txt, 54)[:5]):
-            self._put_str(buf, bx + 35, by + 9 + i, ln, GRADE_LIT)
-        self._put_str(buf, bx + 35, by + 16, fit_line("Pick [1..5] below or [W/S + Enter]  |  [Esc] Close", 56), GRADE_MIST)
+            self._put_str(buf, bx + 35, by + 9 + i, ln, GRADE_LIT, TONE_PARCHMENT)
+        self._put_str(buf, bx + 35, by + 16, fit_line("Pick [1..5] below or [W/S + Enter]  |  [Esc] Close", 56), GRADE_DIM, TONE_STONE)
 
     def _render_battle(self, buf: List[List[Tuple[str, int]]]) -> None:
         b = self.battle
         gate_txt = f" | GATE {'OPEN' if b['gate_breached'] else str(b['gate_hp']) + '/' + str(b['max_gate_hp'])}" if b["map"]["kind"] == "siege" else ""
         hdr = f"{b['title']}{gate_txt} | THORNE {self.total_men(b['player_squads'])} | FOE {self.total_men(b['enemy_squads'])} | {'PAUSED' if b['paused'] else 'LIVE'}"
-        self._put_str(buf, 1, 0, fit_line(hdr, GRID_COLS - 2), GRADE_BRIGHT)
-        self._draw_frame(buf, 0, VIEW_TOP, 68, VIEW_ROWS, "SIEGE FIELD (LIVE ANIMATED UNITS)" if b["map"]["kind"] == "siege" else "BATTLEFIELD (LIVE ANIMATED UNITS)", GRADE_DIM, GRADE_LIT)
-        render_battle_scenery(buf, b, self.clock, self.pulse_waves, 1, VIEW_TOP + 1)
+        self._put_str(buf, 1, 0, fit_line(hdr, GRID_COLS - 2), GRADE_BRIGHT, TONE_AMBER)
+        self._draw_frame(buf, 0, VIEW_TOP, 68, VIEW_ROWS, "SIEGE FIELD (LIVE ANIMATED UNITS)" if b["map"]["kind"] == "siege" else "BATTLEFIELD (LIVE ANIMATED UNITS)", GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_AMBER)
+        render_battle_scenery(buf, b, self.clock, self.pulse_waves, 1, VIEW_TOP + 1, tone_buf=self.tone_buffer)
 
         bounds = (1, VIEW_TOP + 1, 66, VIEW_TOP + 30)
+        foe_house_id = b.get("source_army", {}).get("house_id", "dray")
+        foe_tone = house_tone_id(foe_house_id)
+        foe_remap = {TONE_CRIMSON: foe_tone, TONE_HORSE: TONE_WARHORSE}
+
         sel = self._selected_squad()
         all_units = [
             (s, True) for s in b["player_squads"] if s["men"] > 0
@@ -1162,25 +1245,56 @@ class IroncrownGame:
             sy = VIEW_TOP + 1 + sq["y"] - half_h
             is_sel = bool(is_player and sel and sel["slot"] == sq["slot"])
             grade_boost = 1 if is_sel else (0 if is_player else (-2 if sq.get("routed") else -1))
-            stamp_cell_grid(buf, sx, sy, grid, bounds, grade_boost)
+            stamp_cell_grid(buf, sx, sy, grid, bounds, grade_boost, tone_buf=self.tone_buffer, tone_remap=None if is_player else foe_remap)
             badge = (f"*[{sq['slot']}]{sq['code']}:{sq['men']}*" if is_sel else f"[{sq['slot']}]{sq['code']}:{sq['men']}") if is_player else f"({sq['code']}){sq['men']}"
             bx = max(1, min(67 - len(badge), 1 + sq["x"] - len(badge) // 2))
             by = min(VIEW_TOP + 30, max(VIEW_TOP + 1, sy + len(grid)))
-            self._put_str(buf, bx, by, badge, GRADE_BRIGHT if is_sel else (GRADE_LIT if is_player else GRADE_DIM))
+            self._put_str(buf, bx, by, badge, GRADE_BRIGHT if is_sel else (GRADE_LIT if is_player else GRADE_DIM), TONE_AMBER if is_sel else (TONE_PARCHMENT if is_player else foe_tone))
 
-        self._draw_frame(buf, 68, VIEW_TOP, 36, VIEW_ROWS, "BATTLE ORDERS", GRADE_DIM, GRADE_LIT)
+        for p in self.projectiles:
+            u = min(1.0, p["t"] / max(0.01, p["dur"]))
+            ax = round(p["x"] + (p["tx"] - p["x"]) * u)
+            ay = round(p["y"] + (p["ty"] - p["y"]) * u - math.sin(u * math.pi) * 1.8)
+            if 0 <= ax < BATTLE_W and 0 <= ay < BATTLE_H:
+                tail_x = ax + (-1 if p["tx"] >= p["x"] else 1)
+                if 0 <= tail_x < BATTLE_W:
+                    self._set_cell(buf, 1 + tail_x, VIEW_TOP + 1 + ay, "=", GRADE_LIT, TONE_FIRE)
+                self._set_cell(buf, 1 + ax, VIEW_TOP + 1 + ay, ">" if p["tx"] >= p["x"] else "<", GRADE_BRIGHT, TONE_STEEL)
+        for pt in self.particles:
+            px = round(pt["x"])
+            py = round(pt["y"])
+            if 0 <= px < BATTLE_W and 0 <= py < BATTLE_H:
+                self._set_cell(buf, 1 + px, VIEW_TOP + 1 + py, pt["ch"], GRADE_BRIGHT, TONE_FIRE if pt["ch"] == "*" else TONE_CRIMSON)
+
+        self._draw_frame(buf, 68, VIEW_TOP, 36, VIEW_ROWS, "BATTLE ORDERS", GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_AMBER)
         if sel:
-            self._put_str(buf, 70, 2, fit_line(f"SEL [{sel['slot']}] {sel['label']}", 32), GRADE_BRIGHT)
-            self._put_str(buf, 70, 3, fit_line(f"Men {sel['men']} | Morale {sel['morale']}%", 32), GRADE_LIT)
-        self._put_str(buf, 70, 5, "[ THORNE LINE (Keys 1..5) ]", GRADE_LIT)
+            self._put_str(buf, 70, 2, fit_line(f"SEL [{sel['slot']}] {sel['label']}", 32), GRADE_BRIGHT, TONE_AMBER)
+            self._put_str(buf, 70, 3, fit_line(f"Men {sel['men']} | Morale {sel['morale']}% | {'SHIELD' if sel['braced'] else 'OPEN'}", 32), GRADE_LIT, TONE_PARCHMENT)
+        self._put_str(buf, 70, 5, "[ THORNE LINE (Keys 1..5) ]", GRADE_LIT, TONE_CRIMSON)
         for i, s in enumerate(b["player_squads"]):
             mark = ">" if (sel and sel["slot"] == s["slot"]) else " "
             st = "LOST" if s["men"] <= 0 else ("ROUT" if s["routed"] else ("SHLD" if s["braced"] else "OK  "))
-            self._put_str(buf, 70, 6 + i, fit_line(f"{mark}[{s['slot']}]{s['code']} {s['men']:3d}m {s['morale']:3d}% {st}", 32), GRADE_DIM if s["men"] > 0 else GRADE_GHOST)
-        self._put_str(buf, 70, 12, fit_line(f"[ FOE: {b['source_army']['lord_name'][:23]} ]", 32), GRADE_LIT)
+            is_sel = bool(sel and sel["slot"] == s["slot"])
+            sg = GRADE_BRIGHT if is_sel else (GRADE_DIM if s["men"] > 0 else GRADE_GHOST)
+            stn = TONE_STONE if s["men"] <= 0 else (TONE_AMBER if is_sel else (TONE_CRIMSON if s["routed"] else TONE_PARCHMENT))
+            self._put_str(buf, 70, 6 + i, fit_line(f"{mark}[{s['slot']}]{s['code']} {s['men']:3d}m {s['morale']:3d}% {st}", 32), sg, stn)
+        self._put_str(buf, 70, 12, fit_line(f"[ FOE: {b['source_army']['lord_name'][:23]} ]", 32), GRADE_LIT, foe_tone)
         for i, s in enumerate(b["enemy_squads"]):
             st = "DOWN" if s["men"] <= 0 else ("ROUT" if s["routed"] else ("SHLD" if s["braced"] else "LINE"))
-            self._put_str(buf, 70, 13 + i, fit_line(f" ({s['code']}) {s['label'][:12].ljust(12)} {s['men']:3d}m {s['morale']:3d}% {st}", 32), GRADE_MIST if s["routed"] else GRADE_DIM)
+            self._put_str(buf, 70, 13 + i, fit_line(f" ({s['code']}) {s['label'][:12].ljust(12)} {s['men']:3d}m {s['morale']:3d}% {st}", 32), GRADE_MIST if s["routed"] else GRADE_DIM, TONE_STONE if s["men"] <= 0 else foe_tone)
+        self._put_str(buf, 70, 19, "[ TACTICAL CONTROLS ]", GRADE_LIT, TONE_AMBER)
+        bat_help = [
+            "[1..5] Select Regiment",
+            "[WASD / Arrows] March / Flank",
+            "[F] Brace Shield Wall (2x Def)",
+            "[B] Volley Arrows (Archers)",
+            "[J/C] Heavy Cavalry Charge",
+            "[E] Ram Gate / Duel Commander",
+            "[Space] War Horn (+Morale)",
+            "[P] Pause  [Esc] Retreat",
+        ]
+        for i, ln in enumerate(bat_help):
+            self._put_str(buf, 70, 20 + i, fit_line(ln, 32), GRADE_DIM, TONE_PARCHMENT)
         if self.active_story is not None:
             self._render_story_dispatch(buf, sel["y"] + 2 if sel else 16)
         self._render_bottom_hud(buf)
@@ -1188,24 +1302,30 @@ class IroncrownGame:
     def _render_bottom_hud(self, buf: List[List[Tuple[str, int]]]) -> None:
         if self.screen == "dialogue" and self.active_dialogue:
             dlg = self.active_dialogue
-            self._put_str(buf, 1, LOG_TOP, fit_line(f"{dlg['speaker']}: {dlg['line_fn'](self)}", GRID_COLS - 2), GRADE_BRIGHT)
+            self._put_str(buf, 1, LOG_TOP, fit_line(f"{dlg['speaker']}: {dlg['line_fn'](self)}", GRID_COLS - 2), GRADE_BRIGHT, TONE_AMBER)
             choices = dlg["choices"]
             for i in range(2):
                 a, b = i * 2, i * 2 + 1
                 ta = f"{'>' if a == self.choice_cursor else ' '}[{a+1}] {choices[a]['label'](self)}" if a < len(choices) else ""
                 tb = f"{'>' if b == self.choice_cursor else ' '}[{b+1}] {choices[b]['label'](self)}" if b < len(choices) else ""
                 line = f"{ta[:48].ljust(50)} {tb[:50]}" if tb else ta
-                self._put_str(buf, 1, LOG_TOP + 1 + i, fit_line(line, GRID_COLS - 2), GRADE_LIT)
-            self._put_str(buf, 1, HINT_ROW, fit_line(f"[1-{len(choices)}] Pick Choice  [Enter] Act  [Esc] Close", GRID_COLS - 2), GRADE_MIST)
+                self._put_str(buf, 1, LOG_TOP + 1 + i, fit_line(line, GRID_COLS - 2), GRADE_LIT, TONE_PARCHMENT)
+            self._put_str(buf, 1, HINT_ROW, fit_line(f"[1-{len(choices)}] Pick Choice  [Enter] Act  [Esc] Close", GRID_COLS - 2), GRADE_MIST, TONE_STONE)
             return
 
         obj = compute_war_objective(self)
-        self._put_str(buf, 1, LOG_TOP, fit_line(f"NOW [{obj['chapter']}] {obj['now']} | NEXT: {obj['next']}", GRID_COLS - 2), GRADE_BRIGHT)
+        self._put_str(buf, 1, LOG_TOP, fit_line(f"NOW [{obj['chapter']}] {obj['now']} | NEXT: {obj['next']}", GRID_COLS - 2), GRADE_BRIGHT, TONE_AMBER)
         recent = self.log[-(LOG_ROWS - 1):]
         for i, msg in enumerate(recent):
-            self._put_str(buf, 1, LOG_TOP + 1 + i, fit_line(msg, GRID_COLS - 2), GRADE_LIT if i == len(recent) - 1 else GRADE_DIM)
-        hint = "[WASD] March  [E] Hold/Siege  [C] Council  [T] Raven  [R] Forage  [Space] Scout  [Z] Steed" if self.screen != "battle" else "[1-5] Squad  [WASD] Move  [J/C] Charge  [B] Volley  [F] Shield  [E] Ram/Duel  [Space] Horn"
-        self._put_str(buf, 1, HINT_ROW, fit_line(hint, GRID_COLS - 2), GRADE_MIST)
+            low = msg.lower()
+            tn = (
+                TONE_CRIMSON
+                if any(k in low for k in ("breach", "rout", "betray", "attacked", "famine", "lost", "fire"))
+                else (TONE_FOREST if any(k in low for k in ("allied", "treaty", "victory", "captured", "breached")) else TONE_PARCHMENT)
+            )
+            self._put_str(buf, 1, LOG_TOP + 1 + i, fit_line(msg, GRID_COLS - 2), GRADE_LIT if i == len(recent) - 1 else GRADE_DIM, tn)
+        hint = "[WASD] March  [E] Hold/Siege  [C] Council  [T] Raven  [R] Forage  [Space] Scout  [O] Color" if self.screen != "battle" else "[1-5] Squad  [WASD] Move  [J/C] Charge  [B] Volley  [F] Shield  [E] Ram/Duel  [O] Color"
+        self._put_str(buf, 1, HINT_ROW, fit_line(hint, GRID_COLS - 2), GRADE_DIM, TONE_STONE)
 
     def _render_story_dispatch(self, buf: List[List[Tuple[str, int]]], cursor_row: int) -> None:
         story = self.active_story
@@ -1214,42 +1334,78 @@ class IroncrownGame:
         w, h, left = 102, 10, 1
         top = 21 if cursor_row <= 19 else 2
         for r in range(top, top + h):
-            self._put_str(buf, left, r, " " * w, GRADE_GHOST)
-        self._draw_frame(buf, left, top, w, h, f"WAR CHRONICLE: {story['title']}", GRADE_DIM, GRADE_BRIGHT)
+            self._put_str(buf, left, r, " " * w, GRADE_GHOST, TONE_STONE)
+        self._draw_frame(buf, left, top, w, h, f"WAR CHRONICLE: {story['title']}", GRADE_DIM, GRADE_BRIGHT, TONE_CRIMSON, TONE_AMBER)
         for idx, ln in enumerate(story["lines"][:3]):
-            self._put_str(buf, left + 3, top + 1 + idx, fit_line(ln, w - 6), GRADE_LIT)
-        self._put_str(buf, left + 3, top + 5, fit_line(f"NOW : {story['now']}", w - 6), GRADE_BRIGHT)
-        self._put_str(buf, left + 3, top + 6, fit_line(f"NEXT: {story['next']}", w - 6), GRADE_DIM)
-        self._put_str(buf, left + 3, top + 8, fit_line("[WASD / Enter / Space] Dismiss & Command  |  [Tab] Full Ledger", w - 6), GRADE_BRIGHT)
+            self._put_str(buf, left + 3, top + 1 + idx, fit_line(ln, w - 6), GRADE_LIT, TONE_PARCHMENT)
+        self._put_str(buf, left + 3, top + 5, fit_line(f"NOW : {story['now']}", w - 6), GRADE_BRIGHT, TONE_AMBER)
+        self._put_str(buf, left + 3, top + 6, fit_line(f"NEXT: {story['next']}", w - 6), GRADE_DIM, TONE_STEEL)
+        self._put_str(buf, left + 3, top + 8, fit_line("[WASD / Enter / Space] Dismiss & Command  |  [Tab] Full Ledger", w - 6), GRADE_BRIGHT, TONE_PARCHMENT)
 
     def _render_ledger(self, buf: List[List[Tuple[str, int]]]) -> None:
-        self._draw_frame(buf, 1, 1, GRID_COLS - 2, GRID_ROWS - 3, "REALM WAR LEDGER, HOUSES & OBJECTIVES", GRADE_DIM, GRADE_BRIGHT)
+        self._draw_frame(buf, 1, 1, GRID_COLS - 2, GRID_ROWS - 3, "REALM WAR LEDGER, HOUSES & OBJECTIVES", GRADE_DIM, GRADE_BRIGHT, TONE_STONE, TONE_AMBER)
         obj = compute_war_objective(self)
+        map_w, map_h = 58, 22
+        for r in range(map_h):
+            for c in range(map_w):
+                wx = min(REALM_W - 1, (c * REALM_W) // map_w)
+                wy = min(REALM_H - 1, (r * REALM_H) // map_h)
+                ch = self.grid[wy][wx]
+                m = "~" if ch == "~" else ("^" if ch == "^" else ("=" if ch == "=" else ("+" if ch == "#" else " ")))
+                tn = TONE_RIVER if ch == "~" else (TONE_PARCHMENT if ch == "=" else TONE_STONE)
+                self._set_cell(buf, 3 + c, 4 + r, m, GRADE_MIST if ch in ("=", "~") else GRADE_GHOST, tn)
+        if obj.get("target"):
+            tx = min(map_w - 1, (int(obj["target"][0]) * map_w) // REALM_W)
+            ty = min(map_h - 1, (int(obj["target"][1]) * map_h) // REALM_H)
+            self._set_cell(buf, 3 + tx, 4 + ty, "?", GRADE_BRIGHT, TONE_FIRE)
+        for h in self.holds:
+            hx = min(map_w - 1, (int(h["x"]) * map_w) // REALM_W)
+            hy = min(map_h - 1, (int(h["y"]) * map_h) // REALM_H)
+            self._set_cell(buf, 3 + hx, 4 + hy, "*" if h["owner"] == "thorne" else "K", GRADE_BRIGHT, TONE_AMBER if h["owner"] == "thorne" else house_tone_id(h["owner"]))
+        pxm = min(map_w - 1, (int(self.campaign["px"]) * map_w) // REALM_W)
+        pym = min(map_h - 1, (int(self.campaign["py"]) * map_h) // REALM_H)
+        self._set_cell(buf, 3 + pxm, 4 + pym, "@", GRADE_BRIGHT, TONE_AMBER)
+        self._put_str(buf, 4, 27, "Map Key: [@] You   [*] Thorne Keep   [K] Rival Hold   [?] Target", GRADE_DIM, TONE_STONE)
+
         col = 63
-        self._put_str(buf, col, 3, "[ REALM HOLDS & CONTROL ]", GRADE_LIT)
+        self._put_str(buf, col, 3, "[ REALM HOLDS & CONTROL ]", GRADE_LIT, TONE_AMBER)
         for i, h in enumerate(self.holds):
             tag = self.get_house(h["owner"])["tag"]
-            self._put_str(buf, col, 5 + i, fit_line(f"{h['name'][:17].ljust(17)} [{tag}] G:{h['garrison']:3d}", 38), GRADE_BRIGHT if h["owner"] == "thorne" else GRADE_DIM)
-        self._put_str(buf, col, 23, f"[ GOAL: {obj['chapter']} ]", GRADE_BRIGHT)
+            self._put_str(buf, col, 5 + i, fit_line(f"{h['name'][:17].ljust(17)} [{tag}] G:{h['garrison']:3d}", 38), GRADE_BRIGHT if h["owner"] == "thorne" else GRADE_DIM, TONE_AMBER if h["owner"] == "thorne" else house_tone_id(h["owner"]))
+        self._put_str(buf, col, 15, "[ HOUSE RELATIONS & TREACHERY ]", GRADE_LIT, TONE_AMBER)
+        for i, h in enumerate([x for x in self.houses if not x["is_player"]]):
+            self._put_str(buf, col, 16 + i, fit_line(f"{h['name'][:14].ljust(14)} {h['treaty'].upper():<5} R{h['betrayal_risk']:2d}% Rel:{h['relation']}", 38), GRADE_LIT, TONE_CRIMSON if h["treaty"] == "war" else house_tone_id(h["id"]))
+        self._put_str(buf, col, 23, f"[ GOAL: {obj['chapter']} ]", GRADE_BRIGHT, TONE_AMBER)
         for i, ln in enumerate(wrap_lines(f"NOW : {obj['now']}", 38)[:3]):
-            self._put_str(buf, col, 24 + i, ln, GRADE_LIT)
+            self._put_str(buf, col, 24 + i, ln, GRADE_LIT, TONE_PARCHMENT)
         for i, ln in enumerate(wrap_lines(f"NEXT: {obj['next']}", 38)[:3]):
-            self._put_str(buf, col, 28 + i, ln, GRADE_DIM)
-        self._put_str(buf, 1, HINT_ROW, fit_line("[Tab / Esc / Enter] Return", GRID_COLS - 2), GRADE_MIST)
+            self._put_str(buf, col, 28 + i, ln, GRADE_DIM, TONE_STEEL)
+        self._put_str(buf, 1, HINT_ROW, fit_line("[Tab / Esc / Enter] Return", GRID_COLS - 2), GRADE_DIM, TONE_STONE)
 
     def _render_help(self, buf: List[List[Tuple[str, int]]]) -> None:
-        self._draw_frame(buf, 3, 1, GRID_COLS - 6, GRID_ROWS - 3, "IRONCROWN -- REAL WAR FIELD MANUAL", GRADE_DIM, GRADE_BRIGHT)
-        self._put_str(buf, 6, 4, "1. Hold Supply Lines & Grain; Ride with [WASD] & Inspect Destrier with [Z].", GRADE_BRIGHT)
-        self._put_str(buf, 6, 7, "2. Manage Locke, Brack & Vance Loyalty via Ravens [T] or Spies [C].", GRADE_LIT)
-        self._put_str(buf, 6, 10, "3. In Battle: [1-5] Squads, [F] Shieldwall, [B] Volley, [E] Siege Ram, [J/C] Charge.", GRADE_LIT)
-        self._put_str(buf, 1, HINT_ROW, fit_line("[Enter / Esc / H] Return", GRID_COLS - 2), GRADE_MIST)
+        self._draw_frame(buf, 3, 1, GRID_COLS - 6, GRID_ROWS - 3, "IRONCROWN -- REAL WAR FIELD MANUAL", GRADE_DIM, GRADE_BRIGHT, TONE_STONE, TONE_AMBER)
+        lines = [
+            "1. SUPPLY & GRAIN: Armies eat daily. Keep a road to Thorne holds or forage with [R] on farms.",
+            "2. GREAT HOUSES: Locke (crags), Brack (marsh), Vance (woods) can ally OR betray you if weak.",
+            "3. REAL WAR TACTICS: [1-5] select squad, [F] spear wall vs horse, [B] archery, [J/C] charge.",
+            "4. SIEGES & LADDERS: Batter closed gates with [E] Battering Ram, or send men over side ladders.",
+            "5. WINTER MARCH: Snow freezes deep rivers into ice crossings so flankers can cross anywhere!",
+            "6. WARHORSE GALLERY & COLOR: [Z] views the armored destrier; [O] toggles Full Color vs P3 Amber.",
+        ]
+        for i, ln in enumerate(lines):
+            self._put_str(buf, 6, 4 + i * 2, fit_line(ln, 92), GRADE_BRIGHT if i % 2 == 0 else GRADE_LIT, TONE_AMBER if i % 2 == 0 else TONE_PARCHMENT)
+        self._put_str(buf, 1, HINT_ROW, fit_line("[Enter / Esc / H] Return", GRID_COLS - 2), GRADE_DIM, TONE_STONE)
 
     def _render_outcome(self, buf: List[List[Tuple[str, int]]]) -> None:
         won = self.screen == "victory"
         title = "THE IRON CROWN RECLAIMED -- VICTORY" if won else "THE HOUSE OF THORNE FALLS -- DEFEAT"
-        self._draw_frame(buf, 6, 2, GRID_COLS - 12, 30, title, GRADE_DIM, GRADE_BRIGHT)
+        self._draw_frame(buf, 6, 2, GRID_COLS - 12, 30, title, GRADE_DIM, GRADE_BRIGHT, TONE_AMBER if won else TONE_CRIMSON, TONE_AMBER if won else TONE_CRIMSON)
         if won:
-            stamp_cell_grid(buf, 29, 6, get_baked_campaign_horse(self.clock, True, True), (7, 3, GRID_COLS - 8, 21), 0)
-            self._put_str(buf, 22, 22, "HIGHCROWN FLIES THE WOLF AND AMBER PIKE OF HOUSE THORNE!", GRADE_BRIGHT)
-        self._put_str(buf, 26, 28, "[Enter / N] Begin New War  |  [Esc] Title", GRADE_BRIGHT)
-        self._put_str(buf, 1, HINT_ROW, fit_line("[Enter] New War | [Esc] Title", GRID_COLS - 2), GRADE_MIST)
+            stamp_cell_grid(buf, 29, 6, get_baked_campaign_horse(self.clock, True, True), (7, 3, GRID_COLS - 8, 21), 0, tone_buf=self.tone_buffer)
+            self._put_str(buf, 22, 22, "HIGHCROWN FLIES THE WOLF AND AMBER PIKE OF HOUSE THORNE!", GRADE_BRIGHT, TONE_AMBER)
+        else:
+            lost = ["      \\  /      ", "   --- \\/ ---   ", "  |  BROKEN  |  ", "  |  BANNER  |  ", "   \\________/   "]
+            for i, ln in enumerate(lost):
+                self._put_str(buf, 43, 10 + i, ln, GRADE_LIT, TONE_CRIMSON)
+        self._put_str(buf, 26, 28, "[Enter / N] Begin New War  |  [Esc] Title", GRADE_BRIGHT, TONE_AMBER)
+        self._put_str(buf, 1, HINT_ROW, fit_line("[Enter] New War | [Esc] Title", GRID_COLS - 2), GRADE_DIM, TONE_STONE)

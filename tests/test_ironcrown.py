@@ -10,19 +10,28 @@ from ironcrown.ai import compute_house_betrayal_utility
 from ironcrown.engine import IroncrownGame
 from ironcrown.main import run_headless_demo
 from ironcrown.narrative import compute_war_objective
-from ironcrown.palette import GRID_COLS, GRID_ROWS
+from ironcrown.palette import GRID_COLS, GRID_ROWS, TONE_RGB
 from ironcrown.world_data import HOLD_TEMPLATES, REALM_H, REALM_W, TERRAIN_META, create_realm_grid
 
 
 class IroncrownTests(unittest.TestCase):
-    def _assert_strict_grid(self, buf) -> None:
+    def _assert_strict_grid(self, buf, tone_buf=None) -> set:
         self.assertEqual(len(buf), GRID_ROWS)
+        tones = set()
         for row in buf:
             self.assertEqual(len(row), GRID_COLS)
             for ch, grade in row:
                 self.assertEqual(len(ch), 1)
                 self.assertTrue(32 <= ord(ch) <= 126, f"Bad char {ch!r}")
                 self.assertIn(grade, (0, 1, 2, 3, 4))
+        if tone_buf is not None:
+            self.assertEqual(len(tone_buf), GRID_ROWS)
+            for trow in tone_buf:
+                self.assertEqual(len(trow), GRID_COLS)
+                for tn in trow:
+                    self.assertIn(tn, TONE_RGB)
+                    tones.add(tn)
+        return tones
 
     def test_realm_reachability_and_grid_hygiene(self) -> None:
         grid, villages = create_realm_grid()
@@ -43,18 +52,30 @@ class IroncrownTests(unittest.TestCase):
 
     def test_all_screens_strict_104x38_ascii(self) -> None:
         g = IroncrownGame(save_path=None, seed=717)
-        self._assert_strict_grid(g.render_buffer())  # title
+        title_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # title
+        self.assertGreaterEqual(len(title_tones), 8)
+        g.handle_action("steed")
+        steed_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # steed
+        self.assertGreaterEqual(len(steed_tones), 6)
+        g.handle_action("cancel")
         g.handle_action("confirm")
-        self._assert_strict_grid(g.render_buffer())  # campaign + prologue
+        self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # campaign + prologue
         g.handle_action("confirm")
+        camp_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # campaign
+        self.assertGreaterEqual(len(camp_tones), 8)
+        g.handle_action("interact")
+        dlg_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # dialogue
+        self.assertGreaterEqual(len(dlg_tones), 8)
+        g.handle_action("cancel")
         g.handle_action("ledger")
-        self._assert_strict_grid(g.render_buffer())  # ledger
+        self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # ledger
         g.handle_action("cancel")
         g.handle_action("help")
-        self._assert_strict_grid(g.render_buffer())  # help
+        self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # help
         g.handle_action("cancel")
         g.start_siege_battle(next(h for h in g.holds if h["id"] == "redwatch"))
-        self._assert_strict_grid(g.render_buffer())  # battle
+        battle_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # battle
+        self.assertGreaterEqual(len(battle_tones), 8)
 
     def test_supply_winter_dread_and_siege_ram_progression(self) -> None:
         g = IroncrownGame(save_path=None, seed=717)
