@@ -214,3 +214,4 @@ def step_battle_tile(
             continue
         return (nx, ny)
     return (sx, sy)
+

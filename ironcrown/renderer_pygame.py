@@ -96,7 +96,6 @@ def _map_pygame_key(key: int, screen: str) -> str:
         pygame.K_d: "move_e",
         pygame.K_RIGHT: "move_e",
         pygame.K_j: "strike",
-        pygame.K_z: "strike",
         pygame.K_f: "parry",
         pygame.K_k: "parry",
         pygame.K_b: "volley",
@@ -121,6 +120,9 @@ def _map_pygame_key(key: int, screen: str) -> str:
         pygame.K_RETURN: "confirm",
         pygame.K_KP_ENTER: "confirm",
     }
+    if key == pygame.K_z:
+        return "strike" if screen == "battle" else "steed"
     if key == pygame.K_c:
         return "strike" if screen == "battle" else "council"
     return mapping.get(key, "")
+

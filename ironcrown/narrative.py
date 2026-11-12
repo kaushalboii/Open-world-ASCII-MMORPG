@@ -335,3 +335,4 @@ def open_prisoner_menu(game: Any, captive: Dict[str, Any]) -> Dict[str, Any]:
             {"label": lambda _g: "Execute Before Lines (+22 Dread, -18 Honor, Feud!)", "action": _execute},
         ],
     }
+

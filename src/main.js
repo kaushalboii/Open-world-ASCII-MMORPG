@@ -125,6 +125,11 @@ function bootstrap() {
       updateMetaTag();
       return;
     }
+    if (ev.code === 'KeyZ') {
+      game.handleAction(game.screen === 'battle' ? 'strike' : 'steed');
+      updateMetaTag();
+      return;
+    }
     if (ev.code === 'KeyC') {
       game.handleAction(game.screen === 'battle' ? 'strike' : 'council');
       updateMetaTag();

@@ -60,8 +60,10 @@ def _map_key(ch: int, screen: str) -> str:
         return "move_e"
     if ch in (10, 13, curses.KEY_ENTER):
         return "confirm"
-    if ch in (ord("j"), ord("J"), ord("z"), ord("Z")):
+    if ch in (ord("j"), ord("J")):
         return "strike"
+    if ch in (ord("z"), ord("Z")):
+        return "strike" if screen == "battle" else "steed"
     if ch in (ord("c"), ord("C")):
         return "strike" if screen == "battle" else "council"
     if ch in (ord("f"), ord("F"), ord("k"), ord("K")):
@@ -154,3 +156,4 @@ def run_curses(game: IroncrownGame) -> None:
 
     curses.wrapper(_loop)
     game.save_game()
+

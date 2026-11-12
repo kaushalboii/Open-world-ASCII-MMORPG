@@ -63,3 +63,4 @@ def fit_line(text: str, width: int) -> str:
             return cleaned[:width]
         return cleaned[: width - 2] + ".."
     return cleaned.ljust(width)
+

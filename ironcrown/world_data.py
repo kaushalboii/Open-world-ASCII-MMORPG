@@ -250,3 +250,4 @@ def make_default_regiments(owner_tag: str, scale: float = 1.0, include_ram: bool
     if include_ram:
         list_r.append({"id": f"{owner_tag}_ram", "type": "ram", "men": 12, "max_men": 12, "morale": 90})
     return list_r
+
