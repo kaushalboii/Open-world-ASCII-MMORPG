@@ -82,6 +82,20 @@ import {
 
 export const SAVE_KEY = 'ironcrown_war_v1';
 
+export const HOLD_SHORT_TAGS = {
+  blackpike: 'BLK',
+  ashford: 'ASH',
+  greycrag: 'GRY',
+  oldford: 'OLD',
+  saltport: 'SLT',
+  rookkeep: 'ROK',
+  redwatch: 'RED',
+  kingsbridge: 'KGB',
+  highcrown: 'HGC',
+};
+
+const TARGET_KEEP_ORDER = ['redwatch', 'oldford', 'rookkeep', 'kingsbridge', 'highcrown', 'greycrag', 'ashford', 'saltport', 'blackpike'];
+
 export class IroncrownGame {
   constructor(options = {}) {
     this.sfx = options.sfxCallback || (() => {});
@@ -134,14 +148,14 @@ export class IroncrownGame {
   _initFreshState() {
     this.houses = INITIAL_HOUSES.map((h) => ({ ...h }));
     this.holds = HOLD_TEMPLATES.map((h) => ({ ...h }));
-    this.playerRegiments = makeDefaultRegiments('THN', 1.0, false);
+    this.playerRegiments = makeDefaultRegiments('THN', 1.0, true);
 
     this.campaign = {
-      px: 28,
-      py: 16,
+      px: 27,
+      py: 34,
       day: 1,
       seasonIndex: 0,
-      grain: 230,
+      grain: 260,
       supplied: true,
       scoutedUntilDay: 0,
       moveCooldown: 0,
@@ -202,9 +216,9 @@ export class IroncrownGame {
     this.projectiles = [];
     this.pulseWaves = [];
     this.stats = { battlesWon: 0, siegesWon: 0, lordsCaptured: 0, daysMarched: 0 };
+    this._topSquadHitboxes = [];
     this.log = [
-      'Blackpike Keep holds against winter sleet. Archon Dray holds Highcrown in the south.',
-      'Press [E] at Blackpike to muster, [C] for Small Council Spies, or march East to Old Ford.',
+      'Redwatch Bastion ahead! Select [5] Ram + [E] to smash Gate, or click any Keep below.',
     ];
     this._recomputeSupply();
   }
@@ -315,11 +329,11 @@ export class IroncrownGame {
       this.flags = data.flags || { story_seen: {} };
       this.stats = data.stats || this.stats;
       this.log = data.log || this.log;
-      this.screen = 'campaign';
       this.activeStory = null;
       this.activeDialogue = null;
       this.battle = null;
       this._recomputeSupply();
+      this.deployToNextTarget();
       return true;
     } catch {
       return false;
@@ -546,17 +560,61 @@ export class IroncrownGame {
     this.campaign.grain += 55;
     this.stats.siegesWon += 1;
     this.playCue('victory');
-    this.pushLog(`${hold.name.toUpperCase()} CAPTURED from ${prevOwner.name}! (+110g loot, +55 Grain)`);
+    this.pushLog(`${hold.name.toUpperCase()} CAPTURED from ${prevOwner.name}! Click next [K] Keep below or press [M]!`);
     this._recomputeSupply();
 
     if (hold.id === 'highcrown') {
       this.screen = 'victory';
       return;
     }
-    if (hold.id === 'kingsbridge') {
-      this._triggerStory('highcrown_gates');
-    }
     this.saveGame();
+  }
+
+  _enterFirstBattleground() {
+    this.activeStory = null;
+    this.activeDialogue = null;
+    const redwatch = this.holds.find((h) => h.id === 'redwatch') || this.holds.find((h) => h.owner !== 'thorne') || this.holds[0];
+    this.deployToHold(redwatch);
+  }
+
+  deployToHold(hold) {
+    if (!hold) return;
+    this.campaign.px = hold.x;
+    this.campaign.py = hold.y;
+    this._recomputeSupply();
+    if (hold.owner === 'thorne') {
+      this.resupplyAtHold(hold);
+      const raiders = {
+        id: `patrol_${hold.id}`,
+        houseId: 'dray',
+        lordName: `Dray Raiders at ${hold.name}`,
+        x: hold.x,
+        y: hold.y,
+        men: 95,
+        regiments: makeDefaultRegiments('RAID', 0.58, false),
+      };
+      this.startFieldBattle(raiders, `${hold.name.toUpperCase()} OUTSKIRTS`);
+      return;
+    }
+    this.startSiegeBattle(hold);
+  }
+
+  deployToNextTarget() {
+    for (const hid of TARGET_KEEP_ORDER) {
+      const h = this.holds.find((k) => k.id === hid);
+      if (h && h.owner !== 'thorne') {
+        this.deployToHold(h);
+        return;
+      }
+    }
+    const liveFoe = this.armies.find((a) => a.men > 0);
+    if (liveFoe) {
+      this.campaign.px = liveFoe.x;
+      this.campaign.py = liveFoe.y;
+      this.startFieldBattle(liveFoe);
+      return;
+    }
+    this.screen = 'victory';
   }
 
   // ==================== BATTLE SYSTEM ====================
@@ -569,11 +627,13 @@ export class IroncrownGame {
     return 'plains';
   }
 
-  startFieldBattle(army) {
+  startFieldBattle(army, customTitle = null) {
+    this.campaign.px = army.x ?? this.campaign.px;
+    this.campaign.py = army.y ?? this.campaign.py;
     const kind = this._inferBattleTerrain(this.campaign.px, this.campaign.py);
     const map = buildBattleMap({ kind });
     this._launchBattle({
-      title: `FIELD CLASH: vs ${army.lordName}`,
+      title: customTitle || `FIELD: vs ${army.lordName}`,
       map,
       sourceArmy: army,
       sourceHold: null,
@@ -583,6 +643,8 @@ export class IroncrownGame {
   }
 
   startSiegeBattle(hold) {
+    this.campaign.px = hold.x;
+    this.campaign.py = hold.y;
     const preBribed = Boolean(this.flags[`bribed_${hold.id}`]);
     const map = buildBattleMap({ kind: 'siege', hold, gateBreached: preBribed });
     const enemyHouse = this.getHouse(hold.owner);
@@ -592,7 +654,6 @@ export class IroncrownGame {
       { id: 'def_spear', type: 'spear', men: Math.round(52 * scale), maxMen: Math.round(52 * scale), morale: 85 },
       { id: 'def_bow', type: 'bow', men: Math.round(48 * scale), maxMen: Math.round(48 * scale), morale: 84 },
     ];
-    this._triggerStory('first_siege');
     this._launchBattle({
       title: `SIEGE OF ${hold.name.toUpperCase()}`,
       map,
@@ -610,11 +671,11 @@ export class IroncrownGame {
 
   _launchBattle({ title, map, sourceArmy, sourceHold, gateHp, gateBreached }) {
     const startSlots = [
-      { x: 16, y: 6 },
-      { x: 20, y: 12 },
-      { x: 10, y: 18 },
-      { x: 17, y: 24 },
-      { x: 24, y: 14 },
+      { x: 22, y: 5 },
+      { x: 18, y: 11 },
+      { x: 7, y: 15 },
+      { x: 23, y: 19 },
+      { x: 37, y: 11 },
     ];
     const playerSquads = this.playerRegiments
       .filter((r) => r.men > 0)
@@ -623,8 +684,8 @@ export class IroncrownGame {
         type: r.type,
         label: UNIT_TYPES[r.type].name,
         code: UNIT_TYPES[r.type].code,
-        x: startSlots[i]?.x ?? 10,
-        y: startSlots[i]?.y ?? 6 + i * 5,
+        x: startSlots[i]?.x ?? 16,
+        y: startSlots[i]?.y ?? Math.min(BATTLE_H - 3, 4 + i * 4),
         men: r.men,
         maxMen: r.maxMen,
         hp: r.men * UNIT_TYPES[r.type].hpPerMan,
@@ -642,16 +703,16 @@ export class IroncrownGame {
     const isSiege = map.kind === 'siege';
     const defSlots = isSiege
       ? [
-          { x: 57, y: 15 },
-          { x: 38, y: 14 },
-          { x: 54, y: 10 },
-          { x: 39, y: 22 },
+          { x: 90, y: 11 },
+          { x: 76, y: 11 },
+          { x: 74, y: 5 },
+          { x: 79, y: 18 },
         ]
       : [
-          { x: 52, y: 12 },
-          { x: 46, y: 17 },
-          { x: 55, y: 24 },
-          { x: 50, y: 6 },
+          { x: 82, y: 11 },
+          { x: 72, y: 11 },
+          { x: 88, y: 5 },
+          { x: 76, y: 18 },
         ];
     const enemySquads = sourceArmy.regiments
       .filter((r) => r.men > 0)
@@ -954,8 +1015,8 @@ export class IroncrownGame {
           (Math.abs(c.x - shooter.x) + Math.abs(c.y - shooter.y))
       )[0];
       const bd = Math.abs(bowTarget.x - shooter.x) + Math.abs(bowTarget.y - shooter.y);
-      if (bd > 15) {
-        this.pushLog(`Longbows out of range (${bd} tiles > 15). Move [3] Bows closer!`);
+      if (bd > 26) {
+        this.pushLog(`Longbows out of range (${bd} tiles > 26). Move [3] Bows closer!`);
         return;
       }
       const mult = shooter.type === 'bow' ? 2.5 : 1.1;
@@ -1018,7 +1079,7 @@ export class IroncrownGame {
           this._spawnSparks(b.map.wallX, b.map.gateY, 8);
           if (b.gateHp <= 0) {
             b.gateBreached = true;
-            for (let gy = 13; gy <= 15; gy++) {
+            for (let gy = b.map.gateY - 1; gy <= b.map.gateY + 1; gy++) {
               b.map.grid[gy][b.map.wallX] = '.';
               b.map.grid[gy][b.map.wallX + 1] = '.';
             }
@@ -1029,8 +1090,8 @@ export class IroncrownGame {
           this._tickBattle();
           return;
         }
-        // 2) Ladder Wall Breach Notch [L] at rows 6 or 23 -> step cleanly across wall!
-        if (Math.abs(sq.x - (b.map.wallX - 1)) <= 1 && (Math.abs(sq.y - 6) <= 1 || Math.abs(sq.y - 23) <= 1)) {
+        // 2) Ladder Wall Breach Notch [L] at rows 7 or 15 -> step cleanly across wall!
+        if (Math.abs(sq.x - (b.map.wallX - 1)) <= 1 && (Math.abs(sq.y - 7) <= 1 || Math.abs(sq.y - 15) <= 1)) {
           const destX = b.map.wallX + 2;
           if (!this._isBattleTileOccupied(destX, sq.y)) {
             sq.x = destX;
@@ -1064,12 +1125,14 @@ export class IroncrownGame {
     if (!b || b.outcome) return;
     b.outcome = 'victory';
     this.stats.battlesWon += 1;
-    // Sync surviving player regiment counts cleanly back to campaign
+    // Sync surviving regiments & heal light battlefield spoils so campaign stays kinetic
     for (const r of this.playerRegiments) {
       const sq = b.playerSquads.find((s) => s.type === r.type);
       if (sq) {
-        r.men = Math.max(0, sq.men);
-        r.morale = Math.max(45, sq.morale);
+        r.men = Math.min(r.maxMen, Math.max(0, sq.men) + (r.type === 'ram' ? 2 : 8));
+        r.morale = Math.min(100, Math.max(55, sq.morale + 10));
+        sq.men = r.men;
+        sq.morale = r.morale;
       }
     }
 
@@ -1080,20 +1143,15 @@ export class IroncrownGame {
 
     if (b.sourceHold) {
       const wonHold = b.sourceHold;
-      this.battle = null;
       this.captureHold(wonHold);
       return;
     }
 
-    // Field army defeated -> remove enemy field column & chance to judge captured Commander!
+    // Field army defeated -> remove enemy field column & stay on Battleground + Small Map!
     const defeatedArmy = b.sourceArmy;
     defeatedArmy.men = 0;
     this.stats.lordsCaptured += 1;
-    this.battle = null;
-    this.pushLog(`FIELD VICTORY over ${defeatedArmy.lordName}! (+85g spoils, +30 Grain)`);
-    this.activeDialogue = openPrisonerMenu(this, defeatedArmy);
-    this.choiceCursor = 0;
-    this.screen = 'dialogue';
+    this.pushLog(`VICTORY vs ${defeatedArmy.lordName}! Click [K] Hold or [X] Army below (or [Enter])!`);
     this.saveGame();
   }
 
@@ -1103,26 +1161,25 @@ export class IroncrownGame {
     for (const r of this.playerRegiments) {
       const sq = b.playerSquads.find((s) => s.type === r.type);
       if (sq) {
-        r.men = retreated ? Math.max(8, Math.round(sq.men * 0.72)) : Math.max(0, sq.men);
-        r.morale = 52;
+        r.men = retreated ? Math.max(10, Math.round(sq.men * 0.78)) : Math.max(0, sq.men);
+        r.morale = 58;
       }
     }
-    this.battle = null;
-    // Fall back toward Blackpike Keep cleanly
-    this.campaign.px = 28;
-    this.campaign.py = 16;
-    this.screen = 'campaign';
-    if (retreated) {
-      this.getHouse('thorne').honor = Math.max(0, this.getHouse('thorne').honor - 5);
-      this.playCue('rout');
-      this.pushLog('Controlled retreat sounded! Surviving regiments regroup at Blackpike (-5 Honor).');
-    } else if (this.totalMen(this.playerRegiments) <= 0) {
+    if (!retreated && this.totalMen(this.playerRegiments) <= 0) {
+      this.battle = null;
       this.screen = 'dead';
       this.playCue('defeat');
-    } else {
-      this.playCue('rout');
-      this.pushLog('Battle lost! Broken banners straggle back to Blackpike Keep.');
+      this.saveGame();
+      return;
     }
+    this.playCue('rout');
+    const blackpike = this.holds.find((h) => h.owner === 'thorne') || this.holds[0];
+    this.pushLog(
+      retreated
+        ? `Retreated cleanly! Regrouping at ${blackpike.name} -- click any Keep below to strike!`
+        : `Line broken! Rallying reserves at ${blackpike.name} -- click any Keep below!`
+    );
+    this.deployToHold(blackpike);
     this.saveGame();
   }
 
@@ -1134,35 +1191,24 @@ export class IroncrownGame {
     if (this.screen === 'title') {
       if (act === 'confirm') {
         if (this.hasExistingSave && this.loadGame()) {
-          this.pushLog('Campaign resumed from Blackpike war ledger.');
+          this.pushLog('War banner raised from saved battlefield.');
         } else {
           this._initFreshState();
-          this.screen = 'campaign';
-          this._triggerStory('prologue');
+          this._enterFirstBattleground();
         }
       } else if (act === 'new_game') {
         this._initFreshState();
-        this.screen = 'campaign';
-        this._triggerStory('prologue');
+        this._enterFirstBattleground();
       } else if (act === 'help') {
         this.screen = 'help';
-      } else if (act === 'steed') {
-        this._prevScreen = 'title';
-        this.screen = 'steed';
       }
       return;
     }
 
-    if (this.screen === 'steed') {
-      if (act === 'confirm' || act === 'cancel' || act === 'steed' || act === 'help') {
-        this.screen = this._prevScreen || (this.battle ? 'battle' : 'campaign');
-      }
-      return;
-    }
-
-    if (this.screen === 'help' || this.screen === 'ledger') {
-      if (act === 'confirm' || act === 'cancel' || act === 'ledger' || act === 'help') {
-        this.screen = this.battle ? 'battle' : 'campaign';
+    if (this.screen === 'steed' || this.screen === 'help' || this.screen === 'ledger') {
+      if (act === 'confirm' || act === 'cancel' || act === 'ledger' || act === 'help' || act === 'steed') {
+        if (!this.battle) this._enterFirstBattleground();
+        else this.screen = 'battle';
       }
       return;
     }
@@ -1170,8 +1216,7 @@ export class IroncrownGame {
     if (this.screen === 'victory' || this.screen === 'dead') {
       if (act === 'confirm' || act === 'new_game') {
         this._initFreshState();
-        this.screen = 'campaign';
-        this._triggerStory('prologue');
+        this._enterFirstBattleground();
       } else if (act === 'cancel') {
         this.screen = 'title';
       }
@@ -1183,8 +1228,7 @@ export class IroncrownGame {
       return;
     }
 
-    // Dismiss active Story Dispatch card cleanly on confirm/cancel without eating actions
-    if ((this.screen === 'campaign' || this.screen === 'battle') && this.activeStory) {
+    if (this.activeStory) {
       this.activeStory = null;
       if (act === 'confirm' || act === 'cancel') return;
     }
@@ -1195,7 +1239,7 @@ export class IroncrownGame {
     }
 
     if (this.screen === 'campaign') {
-      this._handleCampaignInput(act);
+      this._enterFirstBattleground();
     }
   }
 
@@ -1368,20 +1412,38 @@ export class IroncrownGame {
 
   _handleBattleInput(act) {
     if (act === 'ledger') {
-      this.screen = 'ledger';
+      this.deployToNextTarget();
+      return;
+    }
+    if (act === 'rest') {
+      const b = this.battle;
+      if (!b) return;
+      for (const r of this.playerRegiments) {
+        r.men = Math.min(r.maxMen, r.men + (r.type === 'ram' ? 1 : 6));
+        r.morale = Math.min(100, r.morale + 10);
+        const sq = b.playerSquads.find((s) => s.type === r.type);
+        if (sq) {
+          sq.men = r.men;
+          sq.hp = r.men * UNIT_TYPES[r.type].hpPerMan;
+          sq.morale = r.morale;
+          sq.routed = false;
+        }
+      }
+      this.campaign.grain = Math.min(450, this.campaign.grain + 30);
+      this.playCue('muster');
+      this.pushLog('Reserves & wounded mended across all squads (+30 Grain).');
       return;
     }
     if (act === 'help') {
       this.screen = 'help';
       return;
     }
-    if (act === 'steed') {
-      this._prevScreen = 'campaign';
-      this.screen = 'steed';
-      return;
-    }
     if (act === 'cancel' || act === 'quit') {
-      this._resolveBattleDefeat(true);
+      if (this.battle?.outcome === 'victory') {
+        this.deployToNextTarget();
+      } else {
+        this._resolveBattleDefeat(true);
+      }
       return;
     }
     if (act === 'pause_battle') {
@@ -1400,7 +1462,11 @@ export class IroncrownGame {
     }
     if (['parry', 'fork', 'volley', 'strike', 'dodge', 'interact', 'confirm'].includes(act)) {
       if (act === 'confirm') {
-        this._tickBattle();
+        if (this.battle.outcome === 'victory') {
+          this.deployToNextTarget();
+        } else {
+          this._tickBattle();
+        }
         return;
       }
       this._executePlayerTactic(act);
@@ -1435,53 +1501,97 @@ export class IroncrownGame {
     }
   }
 
+  _realmToSmallMap(rx, ry) {
+    const mx = Math.min(99, Math.max(0, Math.floor((rx * 100) / REALM_W)));
+    const my = Math.min(8, Math.max(0, Math.floor((ry * 9) / REALM_H)));
+    return [2 + mx, 27 + my];
+  }
+
   /**
-   * Handle mouse click on 104x38 canvas cells inside Campaign / Battle for natural tactical play.
+   * Handle mouse click on 104x38 canvas cells: Top HUD squads, 102x23 Battleground, or Bottom Small Map.
    */
   handleCanvasClick(row, col) {
-    if (this.screen === 'steed') {
-      this.screen = this._prevScreen || 'campaign';
-      return;
-    }
-    if ((this.screen === 'campaign' || this.screen === 'battle') && this.activeStory) {
+    if (this.activeStory) {
       this.activeStory = null;
       return;
     }
-    if (this.screen === 'campaign' && row >= 2 && row <= 16 && col >= 1 && col <= 66) {
-      const camX = Math.max(0, Math.min(REALM_W - 66, this.campaign.px - 33));
-      const camY = Math.max(0, Math.min(REALM_H - 15, this.campaign.py - 7));
-      const wx = camX + (col - 1);
-      const wy = camY + (row - 2);
-      const dx = wx - this.campaign.px;
-      const dy = wy - this.campaign.py;
-      if (dx === 0 && dy === 0) {
-        this.handleAction('interact');
+    if (this.screen === 'help' || this.screen === 'steed' || this.screen === 'ledger') {
+      this.screen = 'battle';
+      return;
+    }
+    if (this.screen !== 'battle' || !this.battle) return;
+
+    // 1) Row 0 squad badge bar click -> switch active squad [1..5]
+    if (row === 0 && this._topSquadHitboxes) {
+      const hit = this._topSquadHitboxes.find((b) => col >= b.x0 && col <= b.x1);
+      if (hit) {
+        this.handleAction(`choice_${hit.slot}`);
         return;
       }
-      const stepAct = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'move_e' : 'move_w') : dy > 0 ? 'move_s' : 'move_n';
-      this.handleAction(stepAct);
-      return;
     }
-    if (this.screen === 'campaign' && row >= 19 && row <= 31 && col >= 1 && col <= 66) {
-      if (col < 23) this.handleAction('move_w');
-      else if (col > 46) this.handleAction('move_e');
-      else this.handleAction('steed');
-      return;
-    }
-    if (this.screen === 'battle' && this.battle && row >= 2 && row <= 31 && col >= 1 && col <= 66) {
+
+    // 2) Rows 2..24, Cols 1..102 -> Full 102x23 Battleground click
+    if (row >= 2 && row <= 24 && col >= 1 && col <= BATTLE_W) {
       const bx = col - 1;
       const by = row - 2;
-      const clickedFriendly = this.battle.playerSquads.find((s) => s.men > 0 && Math.abs(s.x - bx) <= 4 && Math.abs(s.y - by) <= 2);
+      const clickedFriendly = this.battle.playerSquads.find(
+        (s) => s.men > 0 && Math.abs(s.x - bx) <= 4 && Math.abs(s.y - by) <= 2
+      );
       if (clickedFriendly) {
         this.battle.selectedSlot = clickedFriendly.slot;
-        this.pushLog(`Selected [${clickedFriendly.slot}] ${clickedFriendly.label}. Click tile to march!`);
+        this.pushLog(`Selected [${clickedFriendly.slot}] ${clickedFriendly.label}. Click battlefield to march!`);
         return;
       }
       const sq = this._selectedPlayerSquad();
       if (sq) {
         sq.order = { tx: bx, ty: by };
-        this.pushLog(`[${sq.slot}] ${sq.label} ordered to (${bx},${by}).`);
+        this.pushLog(`[${sq.slot}] ${sq.label} marching to (${bx},${by}).`);
       }
+      return;
+    }
+
+    // 3) Rows 27..35, Cols 2..101 -> Bottom Small Realm Map click (jump straight to Keep / Army!)
+    if (row >= 27 && row <= 35 && col >= 2 && col <= 101) {
+      let bestHold = null;
+      let bestScore = 999;
+      for (const h of this.holds) {
+        const [hx, hy] = this._realmToSmallMap(h.x, h.y);
+        const dy = Math.abs(row - hy);
+        const dx = Math.max(0, hx - col, col - (hx + 3));
+        if (dy <= 1 && col >= hx - 1 && col <= hx + 4) {
+          const sc = dy * 6 + dx;
+          if (sc < bestScore) {
+            bestScore = sc;
+            bestHold = h;
+          }
+        }
+      }
+      if (bestHold) {
+        this.deployToHold(bestHold);
+        return;
+      }
+
+      const hitArmy = this.armies.find((a) => {
+        if (a.men <= 0) return false;
+        const [ax, ay] = this._realmToSmallMap(a.x, a.y);
+        return Math.abs(row - ay) <= 1 && Math.abs(col - ax) <= 2;
+      });
+      if (hitArmy) {
+        this.startFieldBattle(hitArmy);
+        return;
+      }
+
+      const rx = Math.min(REALM_W - 1, Math.floor(((col - 2) * REALM_W) / 100));
+      const ry = Math.min(REALM_H - 1, Math.floor(((row - 27) * REALM_H) / 9));
+      this.startFieldBattle({
+        id: `skirmish_${rx}_${ry}`,
+        houseId: 'dray',
+        lordName: 'Dray Outriders',
+        x: rx,
+        y: ry,
+        men: 105,
+        regiments: makeDefaultRegiments('SKR', 0.62, false),
+      });
     }
   }
 
@@ -1603,19 +1713,11 @@ export class IroncrownGame {
   _renderTitle(buf) {
     const heroBounds = { x0: 2, y0: 2, x1: 65, y1: 31 };
 
-    // Left Heroic 3D Halftone Panorama Frame (x=1, y=1, w=66, h=32 -> inner 64x30)
-    this._drawFrame(buf, 1, 1, 66, 32, 'HIGHCROWN MARCH -- WINTER 298', GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_SNOW);
+    // Left Animated Warhorse & Knight Backdrop (x=1, y=1, w=66, h=32 -> inner 64x30)
+    this._drawFrame(buf, 1, 1, 66, 32, 'HIGHCROWN WAR -- WINTER 298', GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_SNOW);
     stampCellGrid(buf, 2, 2, getBakedTitleHero(this.clock), heroBounds, 0);
-    this._putStr(
-      buf,
-      4,
-      31,
-      fitLine('War is won by full granaries, loyal spears & steel cavalry.', 60),
-      GRADE_DIM,
-      TONE_PARCHMENT
-    );
 
-    // Right Command & Title Crest Plaque (x=68, y=1, w=35, h=32 -> cols 68..102)
+    // Minimal Title Start Card (x=68, y=1, w=35, h=32 -> cols 68..102)
     for (let r = 2; r <= 31; r++) this._putStr(buf, 69, r, ' '.repeat(33), GRADE_GHOST, TONE_STONE);
     this._drawFrame(buf, 68, 1, 35, 32, 'IRONCROWN', GRADE_LIT, GRADE_BRIGHT, TONE_CRIMSON, TONE_AMBER);
     const masthead = [
@@ -1627,200 +1729,30 @@ export class IroncrownGame {
       '       C R O W N       ',
     ];
     masthead.forEach((ln, idx) =>
-      this._putStr(buf, 74, 3 + idx, ln, GRADE_BRIGHT, idx === 5 ? TONE_AMBER : TONE_STEEL)
+      this._putStr(buf, 74, 5 + idx, ln, GRADE_BRIGHT, idx === 5 ? TONE_AMBER : TONE_STEEL)
     );
-    this._putStr(buf, 71, 10, 'THE REALM IN WINTER -- GOT WAR', GRADE_BRIGHT, TONE_CRIMSON);
-    this._putStr(buf, 70, 12, '------------------------------', GRADE_GHOST, TONE_STONE);
-    this._putStr(buf, 70, 13, 'Real Feudal War & Sieges:', GRADE_LIT, TONE_AMBER);
-    this._putStr(buf, 70, 14, '* Supply Lines & Starvation', GRADE_LIT, TONE_FOREST);
-    this._putStr(buf, 70, 15, '* House Oaths & Betrayals', GRADE_LIT, TONE_CRIMSON);
-    this._putStr(buf, 70, 16, '* Animated Horses, Bows & Rams', GRADE_LIT, TONE_STEEL);
-    this._putStr(buf, 70, 17, '* Frozen River Winter Strikes', GRADE_LIT, TONE_RIVER);
-    this._putStr(buf, 70, 19, '------------------------------', GRADE_GHOST, TONE_STONE);
+    this._putStr(buf, 73, 13, 'THE REALM IN WINTER', GRADE_LIT, TONE_CRIMSON);
+    this._putStr(buf, 70, 16, '------------------------------', GRADE_GHOST, TONE_STONE);
 
     const resume = this.hasExistingSave;
-    this._putStr(buf, 70, 21, resume ? '[Enter] Resume Saved War' : '[Enter] Muster & Ride Out', GRADE_BRIGHT, TONE_AMBER);
-    if (resume) this._putStr(buf, 70, 23, '[N] Tear Old Charter (New)', GRADE_LIT, TONE_PARCHMENT);
-    this._putStr(buf, 70, 25, '[Z] Inspect War Destrier', GRADE_LIT, TONE_CRIMSON);
-    this._putStr(buf, 70, 27, '[H] War Manual & Controls', GRADE_DIM, TONE_PARCHMENT);
-    this._putStr(buf, 70, 29, '[O] Color  | [P] CRT  | [V] Glow', GRADE_MIST, TONE_STONE);
+    this._putStr(buf, 71, 20, resume ? '[Enter] Continue War' : '[Enter] Enter Battleground', GRADE_BRIGHT, TONE_AMBER);
+    if (resume) this._putStr(buf, 71, 22, '[N] New War', GRADE_LIT, TONE_PARCHMENT);
+    this._putStr(buf, 71, 25, '[O] Color / CRT Mono', GRADE_LIT, TONE_STEEL);
+    this._putStr(buf, 71, 27, '[H] Controls', GRADE_DIM, TONE_PARCHMENT);
 
-    this._putStr(
-      buf,
-      1,
-      LOG_TOP,
-      fitLine('Archon Malcor Dray murdered your brother under truce banner and seized Highcrown Citadel.', GRID_COLS - 2),
-      GRADE_LIT,
-      TONE_PARCHMENT
-    );
-    this._putStr(
-      buf,
-      1,
-      LOG_TOP + 1,
-      fitLine('Command animated cavalry, pikemen, longbows & siege rams across Marren Valley to claim the crown.', GRID_COLS - 2),
-      GRADE_DIM,
-      TONE_PARCHMENT
-    );
     this._putStr(
       buf,
       1,
       HINT_ROW,
-      fitLine('[Enter] Begin Campaign | [Z] Full-Screen Destrier | [H] Manual | [O] Color/Mono | [P] Tint', GRID_COLS - 2),
-      GRADE_MIST,
+      fitLine('[Enter / Click] Start Battleground   |   [H] Controls   |   [O] Color / Mono   |   [P] Tint', GRID_COLS - 2),
+      GRADE_DIM,
       TONE_STONE
     );
   }
 
   _renderCampaign(buf) {
-    const th = this.getHouse('thorne');
-    const season = SEASONS[this.campaign.seasonIndex];
-    const supTag = this.campaign.supplied ? 'SUPPLY OK' : 'CUT OFF!!';
-    const header =
-      `DAY ${this.campaign.day} ${season.label} | ${th.treasury}g | GRAIN ${this.campaign.grain} [${supTag}] | MEN ${this.totalMen(
-        this.playerRegiments
-      )} | HOLDS ${this.heldCount()}/${this.holds.length} | HON ${th.honor} DRD ${th.dread}`;
-    this._putStr(buf, 1, 0, fitLine(header, GRID_COLS - 2), GRADE_BRIGHT, this.campaign.supplied ? TONE_AMBER : TONE_CRIMSON);
-
-    // 1. Upper-Left Realm Campaign Map (x=0, y=1, w=68, h=17 -> inner 66x15)
-    this._drawFrame(buf, 0, VIEW_TOP, 68, 17, 'REALM CAMPAIGN MAP', GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_AMBER);
-    const camX = Math.max(0, Math.min(REALM_W - 66, this.campaign.px - 33));
-    const camY = Math.max(0, Math.min(REALM_H - 15, this.campaign.py - 7));
-    const scouted = this.campaign.day <= this.campaign.scoutedUntilDay;
-
-    for (let r = 0; r < 15; r++) {
-      const wy = camY + r;
-      for (let c = 0; c < 66; c++) {
-        const wx = camX + c;
-        let ch = this.grid[wy]?.[wx] ?? ' ';
-        let g = GRADE_DIM;
-        let tone = TONE_FOREST;
-        if (ch === '~') {
-          ch = ((wx + wy + Math.floor(this.clock * 2.5)) % 4 === 0) ? '-' : '~';
-          g = GRADE_MIST;
-          tone = TONE_RIVER;
-        } else if (ch === '.') {
-          g = GRADE_GHOST;
-          tone = season.id === 'winter' ? TONE_SNOW : TONE_FOREST;
-        } else if (ch === '^') {
-          g = GRADE_MIST;
-          tone = TONE_STONE;
-        } else if (ch === '=') {
-          g = GRADE_DIM;
-          tone = TONE_PARCHMENT;
-        } else if (ch === 'T' || ch === 'v') {
-          g = GRADE_LIT;
-          tone = TONE_FOREST;
-        } else if (ch === ':') {
-          g = season.id === 'winter' ? GRADE_BRIGHT : GRADE_DIM;
-          tone = season.id === 'winter' ? TONE_SNOW : TONE_RIVER;
-        } else if (ch === '#') {
-          g = GRADE_LIT;
-          tone = TONE_STONE;
-        }
-
-        for (const pw of this.pulseWaves) {
-          const dist = Math.hypot(wx - pw.x, wy - pw.y);
-          if (Math.abs(dist - pw.radius) < 1.2) {
-            ch = 'o';
-            g = GRADE_BRIGHT;
-            tone = TONE_AMBER;
-          }
-        }
-        buf[VIEW_TOP + 1 + r][1 + c] = [ch, g, tone];
-      }
-    }
-
-    for (const h of this.holds) {
-      const sx = h.x - camX + 1;
-      const sy = h.y - camY + VIEW_TOP + 1;
-      if (sx >= 1 && sx <= 66 && sy >= VIEW_TOP + 1 && sy <= VIEW_TOP + 15) {
-        const owner = this.getHouse(h.owner);
-        const sym = h.owner === 'thorne' ? '*' : owner.treaty === 'war' ? '!' : '+';
-        const hTone = h.owner === 'thorne' ? TONE_AMBER : houseToneId(h.owner);
-        buf[sy][sx] = [sym, GRADE_BRIGHT, hTone];
-        if (sx + 4 <= 66) {
-          this._putStr(buf, sx + 1, sy, h.name.slice(0, 6).toUpperCase(), h.owner === 'thorne' ? GRADE_BRIGHT : GRADE_LIT, hTone);
-        }
-      }
-    }
-
-    for (const a of this.armies) {
-      if (a.men <= 0) continue;
-      const sx = a.x - camX + 1;
-      const sy = a.y - camY + VIEW_TOP + 1;
-      if (sx >= 1 && sx <= 66 && sy >= VIEW_TOP + 1 && sy <= VIEW_TOP + 15) {
-        const d = Math.abs(a.x - this.campaign.px) + Math.abs(a.y - this.campaign.py);
-        const visible = scouted || d <= 14;
-        const h = this.getHouse(a.houseId);
-        const glyph = visible ? (h.treaty === 'war' ? 'X' : h.tag[0]) : '?';
-        buf[sy][sx] = [glyph, visible && h.treaty === 'war' ? GRADE_BRIGHT : GRADE_LIT, visible ? houseToneId(a.houseId) : TONE_STONE];
-      }
-    }
-
-    const psx = this.campaign.px - camX + 1;
-    const psy = this.campaign.py - camY + VIEW_TOP + 1;
-    buf[psy][psx] = ['@', GRADE_BRIGHT, TONE_AMBER];
-
-    // 2. Lower-Left Live March Vista (x=0, y=18, w=68, h=15 -> inner 66x13 fits full 46x13 Halftone Warhorse!)
-    const curHold = this.holdAt(this.campaign.px, this.campaign.py);
-    const tileHere = this.grid[this.campaign.py][this.campaign.px];
-    const hereLabel = curHold ? `${curHold.name} [${this.getHouse(curHold.owner).tag}]` : TERRAIN_META[tileHere]?.name || 'Wilds';
-    const ridingTag = (this.campaign.gallopTimer || 0) > 0 ? 'GALLOPING' : 'HALTED';
-    this._drawFrame(buf, 0, 18, 68, 15, `KING'S ROAD: ${hereLabel.slice(0, 22).toUpperCase()} (${ridingTag})`, GRADE_DIM, GRADE_BRIGHT, TONE_STONE, TONE_AMBER);
-    renderCampaignMarchVista(buf, this, { x0: 1, y0: 19, width: 66, height: 13 });
-
-    // 3. Right War Command Sidebar (x=68, y=1, w=36, h=32 -> inner width 32)
-    this._drawFrame(buf, 68, VIEW_TOP, 36, VIEW_ROWS, 'WAR COLUMN & HOUSES', GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_AMBER);
-    this._putStr(buf, 70, 2, fitLine(`LOC: ${hereLabel}`, 32), GRADE_BRIGHT, curHold ? houseToneId(curHold.owner) : TONE_SNOW);
-    this._putStr(buf, 70, 4, '[ THORNE REGIMENTS ]', GRADE_LIT, TONE_AMBER);
-    this.playerRegiments.forEach((r, idx) => {
-      const tpl = UNIT_TYPES[r.type];
-      const line = `[${tpl.code}] ${tpl.name.slice(0, 15).padEnd(15)} ${String(r.men).padStart(3)} ${r.morale}%`;
-      this._putStr(buf, 70, 5 + idx, line, r.men > 0 ? GRADE_LIT : GRADE_GHOST, r.men > 0 ? TONE_PARCHMENT : TONE_STONE);
-    });
-
-    this._putStr(buf, 70, 11, '[ GREAT HOUSES & OATHS ]', GRADE_LIT, TONE_AMBER);
-    this.houses.filter((h) => !h.isPlayer).forEach((h, idx) => {
-      const risk = h.betrayalRisk > 0 && h.treaty !== 'war' ? ` R${h.betrayalRisk}%` : '';
-      const ln = `${h.tag} ${h.treaty.toUpperCase().padEnd(5)} ${String(h.relation).padStart(4)}${risk}`;
-      const g = h.treaty === 'war' ? GRADE_BRIGHT : h.betrayalRisk >= 52 ? GRADE_LIT : GRADE_DIM;
-      const tn = h.treaty === 'war' ? TONE_CRIMSON : h.betrayalRisk >= 52 ? TONE_FIRE : houseToneId(h.id);
-      this._putStr(buf, 70, 12 + idx, fitLine(ln, 32), g, tn);
-    });
-
-    this._putStr(buf, 70, 17, '[ NEAREST FOE BANNERS ]', GRADE_LIT, TONE_AMBER);
-    const hostiles = this.armies
-      .filter((a) => a.men > 0)
-      .sort((a, b) => Math.abs(a.x - this.campaign.px) + Math.abs(a.y - this.campaign.py) - (Math.abs(b.x - this.campaign.px) + Math.abs(b.y - this.campaign.py)))
-      .slice(0, 3);
-    hostiles.forEach((a, idx) => {
-      const br = bearingLabel(this.campaign.px, this.campaign.py, a.x, a.y);
-      const menStr = scouted || Math.abs(a.x - this.campaign.px) + Math.abs(a.y - this.campaign.py) <= 14 ? `${a.men}m` : '?m';
-      this._putStr(buf, 70, 18 + idx, fitLine(`${a.lordName.slice(0, 16)} ${menStr} ${br}`, 32), GRADE_DIM, houseToneId(a.houseId));
-    });
-
-    this._putStr(buf, 70, 22, '[ COMMAND ACTIONS ]', GRADE_LIT, TONE_AMBER);
-    const cmds = [
-      '[E] Keep / Siege / Village',
-      '[C] Small Council & Spies',
-      '[T] Dispatch Raven Pact',
-      '[R] Camp & Forage 1 Day',
-      '[Space] Outrider Scout',
-      '[Z] Full-Screen Destrier',
-      '[Tab] Map & Full Ledger',
-      '[H] Field Manual / Help',
-    ];
-    cmds.forEach((c, idx) => this._putStr(buf, 70, 23 + idx, fitLine(c, 32), GRADE_DIM, TONE_PARCHMENT));
-
-    if (this.screen === 'dialogue' && this.activeDialogue) {
-      this._renderDialogueChamber(buf);
-    }
-
-    if (this.activeStory) {
-      this._renderStoryDispatch(buf, psy);
-    }
-
-    this._renderBottomHud(buf);
+    if (!this.battle) this._enterFirstBattleground();
+    this._renderBattle(buf);
   }
 
   _renderDialogueChamber(buf) {
@@ -1878,21 +1810,50 @@ export class IroncrownGame {
     const b = this.battle;
     const ourMen = this.totalMen(b.playerSquads);
     const foeMen = this.totalMen(b.enemySquads);
-    const gateTxt = b.map.kind === 'siege' ? ` | GATE ${b.gateBreached ? 'OPEN' : `${b.gateHp}/${b.maxGateHp}`}` : '';
-    const hdr = `${b.title}${gateTxt} | THORNE ${ourMen} | FOE ${foeMen} | ${b.paused ? 'PAUSED' : 'LIVE'}`;
-    this._putStr(buf, 1, 0, fitLine(hdr, GRID_COLS - 2), GRADE_BRIGHT, TONE_AMBER);
-
-    // 1. Render Shaded Battlefield, Pines, Stone Curtain Wall & Keep Towers
-    this._drawFrame(buf, 0, VIEW_TOP, 68, VIEW_ROWS, b.map.kind === 'siege' ? 'SIEGE FIELD (LIVE ANIMATED UNITS)' : 'BATTLEFIELD (LIVE ANIMATED UNITS)', GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_AMBER);
-    renderBattleScenery(buf, b, this.clock, this.pulseWaves, 1, VIEW_TOP + 1);
-
-    const bounds = { x0: 1, y0: VIEW_TOP + 1, x1: 66, y1: VIEW_TOP + 30 };
     const foeHouseId = b.sourceArmy?.houseId || 'dray';
     const foeTone = houseToneId(foeHouseId);
+    const sel = this._selectedPlayerSquad();
+
+    // Row 0: Compact 1-line Header + Clickable Squad Selector Bar
+    const gateTxt = b.map.kind === 'siege' ? ` | G:${b.gateBreached ? 'OPEN' : b.gateHp}` : '';
+    const shortTitle = b.title.replace(/^SIEGE OF /, '').replace(/^FIELD: vs /, 'vs ');
+    const leftHud = b.outcome === 'victory'
+      ? `VICTORY! ${shortTitle} | THN ${ourMen}`
+      : `${shortTitle}${gateTxt} | US:${ourMen} FOE:${foeMen}`;
+    this._putStr(buf, 1, 0, fitLine(leftHud, 48).trimEnd(), GRADE_BRIGHT, b.outcome === 'victory' ? TONE_FOREST : TONE_AMBER);
+
+    this._topSquadHitboxes = [];
+    let sxCur = 50;
+    for (const sq of b.playerSquads) {
+      const isSel = sel && sel.slot === sq.slot;
+      const chip = isSel ? `*[${sq.slot}]${sq.code}${sq.men}` : `[${sq.slot}]${sq.code}${sq.men}`;
+      const endX = sxCur + chip.length - 1;
+      if (endX <= GRID_COLS - 7) {
+        const g = sq.men <= 0 ? GRADE_GHOST : isSel ? GRADE_BRIGHT : GRADE_LIT;
+        const tn = sq.men <= 0 ? TONE_STONE : isSel ? TONE_AMBER : sq.routed ? TONE_CRIMSON : TONE_PARCHMENT;
+        this._putStr(buf, sxCur, 0, chip, g, tn);
+        this._topSquadHitboxes.push({ slot: sq.slot, x0: sxCur, x1: endX });
+        sxCur = endX + 2;
+      }
+    }
+    this._putStr(buf, GRID_COLS - 6, 0, `K:${this.heldCount()}/9`, GRADE_LIT, TONE_AMBER);
+
+    // 1. Rows 1..25 (Full 104-col frame -> inner 102x23): THE BATTLE GROUND ONLY
+    const frameTitle =
+      b.outcome === 'victory'
+        ? 'HOLD SECURED -- CLICK ANY [K/*] ON SMALL MAP BELOW OR PRESS [Enter]/[M]'
+        : b.paused
+          ? 'BATTLEGROUND PAUSED -- [L] RESUME'
+          : b.map.kind === 'siege'
+            ? 'SIEGE BATTLEGROUND -- [5]+[E] RAM GATE | [L] CLIMB LADDER | [J/C] CHARGE'
+            : 'OPEN BATTLEGROUND -- [1-5] SQUAD | [J/C] CHARGE | [B] BOW VOLLEY | [F] SHIELD WALL';
+    this._drawFrame(buf, 0, 1, GRID_COLS, 25, frameTitle, GRADE_DIM, b.outcome === 'victory' ? GRADE_BRIGHT : GRADE_LIT, TONE_STONE, b.outcome === 'victory' ? TONE_FOREST : TONE_AMBER);
+    renderBattleScenery(buf, b, this.clock, this.pulseWaves, 1, 2);
+
+    const bounds = { x0: 1, y0: 2, x1: BATTLE_W, y1: 1 + BATTLE_H };
     const foeRemap = { [TONE_CRIMSON]: foeTone, [TONE_HORSE]: TONE_WARHORSE };
 
-    // 2. Render Living Multi-Line Regiments sorted back-to-front by Y
-    const sel = this._selectedPlayerSquad();
+    // 2. Living Multi-Color Animated Units sorted back-to-front by Y
     const allUnits = [
       ...b.playerSquads.filter((s) => s.men > 0).map((s) => ({ sq: s, isPlayer: true })),
       ...b.enemySquads.filter((s) => s.men > 0).map((s) => ({ sq: s, isPlayer: false })),
@@ -1902,95 +1863,131 @@ export class IroncrownGame {
       const pose = sq.poseTimer > 0 ? sq.pose : 'idle';
       const spr = getBakedBattleSprite(sq, this.clock, pose);
       const sx = 1 + sq.x - spr.halfW;
-      const sy = VIEW_TOP + 1 + sq.y - spr.halfH;
+      const sy = 2 + sq.y - spr.halfH;
       const isSelected = isPlayer && sel && sel.slot === sq.slot;
       const gradeBoost = isSelected ? 1 : isPlayer ? 0 : sq.routed ? -2 : -1;
       stampCellGrid(buf, sx, sy, spr.grid, bounds, gradeBoost, isPlayer ? null : foeRemap);
 
-      // Compact unit strength badge cleanly anchored near bottom of sprite
       const badge = isPlayer
         ? isSelected
           ? `*[${sq.slot}]${sq.code}:${sq.men}*`
           : `[${sq.slot}]${sq.code}:${sq.men}`
         : `(${sq.code})${sq.men}`;
-      const bx = Math.max(1, Math.min(67 - badge.length, 1 + sq.x - Math.floor(badge.length / 2)));
-      const by = Math.min(VIEW_TOP + 30, Math.max(VIEW_TOP + 1, sy + spr.grid.length));
+      const bx = Math.max(1, Math.min(BATTLE_W + 1 - badge.length, 1 + sq.x - Math.floor(badge.length / 2)));
+      const by = Math.min(24, Math.max(2, sy + spr.grid.length));
       this._putStr(buf, bx, by, badge, isSelected ? GRADE_BRIGHT : isPlayer ? GRADE_LIT : GRADE_DIM, isSelected ? TONE_AMBER : isPlayer ? TONE_PARCHMENT : foeTone);
     }
 
-    // 3. Parabolic Arrows & Sparks on top
+    // 3. Parabolic Arrows & Sparks
     for (const p of this.projectiles) {
       const u = Math.min(1, p.t / p.dur);
       const ax = Math.round(p.x + (p.tx - p.x) * u);
       const ay = Math.round(p.y + (p.ty - p.y) * u - Math.sin(u * Math.PI) * 1.8);
       if (ax >= 0 && ax < BATTLE_W && ay >= 0 && ay < BATTLE_H) {
         const tailX = ax + (p.tx >= p.x ? -1 : 1);
-        if (tailX >= 0 && tailX < BATTLE_W) buf[VIEW_TOP + 1 + ay][1 + tailX] = ['=', GRADE_LIT, TONE_FIRE];
-        buf[VIEW_TOP + 1 + ay][1 + ax] = [p.tx >= p.x ? '>' : '<', GRADE_BRIGHT, TONE_STEEL];
+        if (tailX >= 0 && tailX < BATTLE_W) buf[2 + ay][1 + tailX] = ['=', GRADE_LIT, TONE_FIRE];
+        buf[2 + ay][1 + ax] = [p.tx >= p.x ? '>' : '<', GRADE_BRIGHT, TONE_STEEL];
       }
     }
     for (const pt of this.particles) {
       const px = Math.round(pt.x);
       const py = Math.round(pt.y);
       if (px >= 0 && px < BATTLE_W && py >= 0 && py < BATTLE_H) {
-        buf[VIEW_TOP + 1 + py][1 + px] = [pt.ch, GRADE_BRIGHT, pt.ch === '*' ? TONE_FIRE : TONE_CRIMSON];
+        buf[2 + py][1 + px] = [pt.ch, GRADE_BRIGHT, pt.ch === '*' ? TONE_FIRE : TONE_CRIMSON];
       }
     }
 
-    // 4. Battle Right Command Panel (cols 68..103)
-    this._drawFrame(buf, 68, VIEW_TOP, 36, VIEW_ROWS, 'BATTLE ORDERS', GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_AMBER);
-    if (sel) {
-      this._putStr(buf, 70, 2, fitLine(`SEL [${sel.slot}] ${sel.label}`, 32), GRADE_BRIGHT, TONE_AMBER);
-      this._putStr(buf, 70, 3, fitLine(`Men ${sel.men} | Morale ${sel.morale}% | ${sel.braced ? 'SHIELD WALL' : 'OPEN'}`, 32), GRADE_LIT, TONE_PARCHMENT);
+    // Embed concise live combat log cleanly along row 25 border
+    const lastLog = this.log[this.log.length - 1] || '';
+    if (lastLog) {
+      const tag = `[ ${fitLine(lastLog, 90).trimEnd()} ]`;
+      this._putStr(buf, Math.max(2, Math.floor((GRID_COLS - tag.length) / 2)), 25, tag, GRADE_LIT, TONE_PARCHMENT);
     }
 
-    this._putStr(buf, 70, 5, '[ THORNE LINE (Keys 1..5) ]', GRADE_LIT, TONE_CRIMSON);
-    b.playerSquads.forEach((s, i) => {
-      const mark = sel && sel.slot === s.slot ? '>' : ' ';
-      const st = s.men <= 0 ? 'LOST' : s.routed ? 'ROUT' : s.braced ? 'SHLD' : 'OK  ';
-      const isSel = sel && sel.slot === s.slot;
-      this._putStr(
-        buf,
-        70,
-        6 + i,
-        fitLine(`${mark}[${s.slot}]${s.code} ${String(s.men).padStart(3)}m ${String(s.morale).padStart(3)}% ${st}`, 32),
-        s.men > 0 ? (isSel ? GRADE_BRIGHT : GRADE_LIT) : GRADE_GHOST,
-        s.men <= 0 ? TONE_STONE : isSel ? TONE_AMBER : s.routed ? TONE_CRIMSON : TONE_PARCHMENT
-      );
-    });
+    // 4. Rows 26..36 (100x9 centered): THE SMALL REALM MAP AT THE BOTTOM
+    this._renderSmallRealmMap(buf);
 
-    this._putStr(buf, 70, 12, fitLine(`[ FOE: ${b.sourceArmy.lordName.slice(0, 23)} ]`, 32), GRADE_LIT, foeTone);
-    b.enemySquads.forEach((s, i) => {
-      const st = s.men <= 0 ? 'DOWN' : s.routed ? 'ROUT' : s.braced ? 'SHLD' : 'LINE';
-      this._putStr(
-        buf,
-        70,
-        13 + i,
-        fitLine(` (${s.code}) ${s.label.slice(0, 12).padEnd(12)} ${String(s.men).padStart(3)}m ${String(s.morale).padStart(3)}% ${st}`, 32),
-        s.routed ? GRADE_MIST : GRADE_DIM,
-        s.men <= 0 ? TONE_STONE : foeTone
-      );
-    });
+    // 5. Row 37: Clean 1-line Battle Controls Hint
+    const hint = b.outcome === 'victory'
+      ? '[Enter / M / Click Map] Deploy to Next Keep  |  [R] Mend Wounded  |  [H] Controls  |  [O] Color'
+      : '[1-5] Squad  [WASD] Move  [J/C] Charge  [B] Bow  [F] Shield  [E] Ram/Duel  [M] Next Keep  [O] Color';
+    this._putStr(buf, 1, HINT_ROW, fitLine(hint, GRID_COLS - 2).trimEnd(), GRADE_DIM, TONE_STONE);
+  }
 
-    this._putStr(buf, 70, 19, '[ TACTICAL CONTROLS ]', GRADE_LIT, TONE_AMBER);
-    const batHelp = [
-      '[1..5] / Click : Pick Regiment',
-      '[WASD] / Click : March / Flank',
-      '[J] / [C]      : Charge & Strike',
-      '[B]            : Arrow Volley',
-      '[F]            : Shield Wall',
-      '[E]            : Ram / Wall / Duel',
-      '[Space]        : War-Horn Rally',
-      '[L]            : Pause Battle',
-      '[Esc]          : Order Retreat',
-    ];
-    batHelp.forEach((ln, i) => this._putStr(buf, 70, 20 + i, ln, GRADE_DIM, TONE_PARCHMENT));
+  _renderSmallRealmMap(buf) {
+    const title = `SMALL REALM MAP (${this.heldCount()}/9 KEEPS) -- [@] HERE  [*] YOURS  [K] ENEMY  CLICK TO FIGHT`;
+    this._drawFrame(buf, 0, 26, GRID_COLS, 11, title, GRADE_DIM, GRADE_LIT, TONE_STONE, TONE_AMBER);
 
-    if (this.activeStory) {
-      this._renderStoryDispatch(buf, sel ? sel.y + 2 : 16);
+    const mapW = 100;
+    const mapH = 9;
+    const season = SEASONS[this.campaign.seasonIndex];
+    for (let r = 0; r < mapH; r++) {
+      const ry = Math.min(REALM_H - 1, Math.floor((r * REALM_H) / mapH));
+      for (let c = 0; c < mapW; c++) {
+        const rx = Math.min(REALM_W - 1, Math.floor((c * REALM_W) / mapW));
+        let ch = this.grid[ry][rx];
+        let g = GRADE_GHOST;
+        let tn = TONE_FOREST;
+        if (ch === '~') {
+          ch = ((c + r + Math.floor(this.clock * 2)) % 4 === 0) ? '-' : '~';
+          g = GRADE_MIST;
+          tn = TONE_RIVER;
+        } else if (ch === ':') {
+          g = season.id === 'winter' ? GRADE_LIT : GRADE_MIST;
+          tn = season.id === 'winter' ? TONE_SNOW : TONE_RIVER;
+        } else if (ch === '=') {
+          g = GRADE_DIM;
+          tn = TONE_PARCHMENT;
+        } else if (ch === '^') {
+          g = GRADE_DIM;
+          tn = TONE_SNOW;
+        } else if (ch === 'T') {
+          g = GRADE_DIM;
+          tn = TONE_FOREST;
+        } else if (ch === '#') {
+          ch = '+';
+          g = GRADE_DIM;
+          tn = TONE_STONE;
+        } else {
+          ch = ((c * 7 + r * 13) % 6 === 0) ? '.' : ' ';
+          g = GRADE_GHOST;
+          tn = season.id === 'winter' ? TONE_SNOW : TONE_FOREST;
+        }
+        buf[27 + r][2 + c] = [ch, g, tn];
+      }
     }
 
-    this._renderBottomHud(buf);
+    // Rival field armies ('X'), kept clear of Keep symbol+3-char tag spans
+    const holdCoords = this.holds.map((h) => this._realmToSmallMap(h.x, h.y));
+    for (const a of this.armies) {
+      if (a.men <= 0) continue;
+      const [ax, ay] = this._realmToSmallMap(a.x, a.y);
+      const nearKeep = holdCoords.some(([hx, hy]) => hy === ay && ax >= hx && ax <= hx + 4);
+      if (!nearKeep) buf[ay][ax] = ['X', GRADE_BRIGHT, houseToneId(a.houseId)];
+    }
+
+    // All 9 Keeps (* / K + 3-letter tag)
+    for (let i = 0; i < this.holds.length; i++) {
+      const h = this.holds[i];
+      const [hx, hy] = holdCoords[i];
+      const isOwned = h.owner === 'thorne';
+      const isCurrent = this.battle?.sourceHold?.id === h.id || (this.campaign.px === h.x && this.campaign.py === h.y);
+      const sym = isOwned ? '*' : 'K';
+      const hTone = isOwned ? TONE_AMBER : houseToneId(h.owner);
+      buf[hy][hx] = [sym, GRADE_BRIGHT, hTone];
+      const tag = HOLD_SHORT_TAGS[h.id] || h.name.slice(0, 3).toUpperCase();
+      this._putStr(buf, Math.min(102 - tag.length, hx + 1), hy, tag, isCurrent ? GRADE_BRIGHT : GRADE_LIT, isCurrent ? TONE_AMBER : hTone);
+    }
+
+    // Active Battleground '@' marker (blinks gently over Keep glyph when occupying a Hold)
+    const [pxm, pym] = this._realmToSmallMap(this.campaign.px, this.campaign.py);
+    if (!this.holdAt(this.campaign.px, this.campaign.py) || Math.floor(this.clock * 2.5) % 2 === 0) {
+      buf[pym][pxm] = ['@', GRADE_BRIGHT, TONE_AMBER];
+    }
+
+    const obj = computeWarObjective(this);
+    const botObj = `[ NOW: ${fitLine(obj.now, 72).trimEnd()} | DAY ${this.campaign.day} ${season.label} ]`;
+    this._putStr(buf, Math.max(2, Math.floor((GRID_COLS - botObj.length) / 2)), 36, botObj, GRADE_DIM, TONE_PARCHMENT);
   }
 
   _renderBottomHud(buf) {
@@ -2127,23 +2124,22 @@ export class IroncrownGame {
   }
 
   _renderHelp(buf) {
-    this._drawFrame(buf, 3, 1, GRID_COLS - 6, GRID_ROWS - 3, 'IRONCROWN -- REAL WAR FIELD MANUAL', GRADE_DIM, GRADE_BRIGHT, TONE_STONE, TONE_AMBER);
+    this._drawFrame(buf, 3, 1, GRID_COLS - 6, GRID_ROWS - 3, 'IRONCROWN -- BATTLEGROUND & SMALL MAP CONTROLS', GRADE_DIM, GRADE_BRIGHT, TONE_STONE, TONE_AMBER);
     const lines = [
-      '1. CAMPAIGN LOGISTICS & LIVE MARCH VISTA',
-      '   - Ride with [WASD] or click map tiles: your warhorse gallops in the vista & armies eat Grain.',
-      '   - Press [Z] anytime on Title/Campaign to inspect the Full-Screen Animated Royal Destrier!',
-      '2. HOUSE POLITICS, RAVENS & REAL BETRAYAL',
-      '   - Locke (Honor), Brack (Coin/Quays), and Vance (Ambition) track Loyalty, Dread, and Risk.',
-      '   - Open [T] Dispatch Raven to seal pacts or press [C] Small Council to bribe Gate Wardens.',
-      '3. LIVE TACTICAL SIEGES & ANIMATED REGIMENTS',
-      '   - Select animated squads [1..5] or click them: [1] Guard, [2] Shieldwall [F], [3] Bows [B],',
-      '     [4] Galloping Knight Lancers [J/C Charge], and [5] Wheeled Iron Siege Ram [E].',
-      '   - Keeps have multi-tier Stone Walls & Oak Gatehouses [HH]; smash the gate or scale [L]!',
-      '4. WINNING THE CROWN',
-      '   - Capture Redwatch -> Kingsbridge -> Highcrown Citadel to overthrow Archon Malcor Dray.',
+      '1. LIVE BATTLEGROUND COMMAND (TOP ARENA)',
+      '   - Select squads [1..5] or click them: [1] Guard, [2] Shieldwall, [3] Bows, [4] Lancers, [5] Ram.',
+      '   - Move with [WASD] / Arrows or click any battlefield cell to march.',
+      '2. COMBAT & SIEGE ACTIONS',
+      '   - [J] / [C] Cavalry Charge or Melee Strike   |   [B] Longbow Volley',
+      '   - [F] Toggle Shield Wall (blocks arrows/horse) |   [Space] War-Horn Rally (+Morale)',
+      '   - [E] Smash Iron Gatehouse [HH] with Ram [5], Climb Wall Ladder [L], or Duel Enemy Lord',
+      '3. SMALL REALM MAP (BOTTOM STRIP)',
+      '   - Click any Keep [*] / [K] or Enemy Banner [X] on the bottom map to fight there immediately!',
+      '   - Press [M] or [Tab] (or [Enter] after winning) to deploy to the next unconquered Keep.',
+      '   - Press [R] to mend wounded squads (+grain)   |   Press [O] to toggle Full Color vs P3 Amber.',
     ];
     lines.forEach((ln, i) => this._putStr(buf, 6, 4 + i * 2, fitLine(ln, 92), i % 3 === 0 ? GRADE_BRIGHT : GRADE_LIT, i % 3 === 0 ? TONE_AMBER : TONE_PARCHMENT));
-    this._putStr(buf, 1, HINT_ROW, fitLine('[Enter / Esc / H / Click] Return', GRID_COLS - 2), GRADE_DIM, TONE_STONE);
+    this._putStr(buf, 1, HINT_ROW, fitLine('[Enter / Esc / H / Click] Return to Battleground', GRID_COLS - 2), GRADE_DIM, TONE_STONE);
   }
 
   _renderOutcome(buf) {

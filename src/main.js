@@ -70,14 +70,7 @@ function bootstrap() {
     if (colorBtn) {
       colorBtn.textContent = renderer.colorEnabled ? '[O] COLOR: FULL' : '[O] COLOR: MONO';
     }
-    if (colorBtn) {
-    colorBtn.addEventListener('click', () => {
-      audio.unlock();
-      renderer.toggleColor();
-      updateMetaTag();
-    });
-  }
-  if (phosphorBtn) {
+    if (phosphorBtn) {
       const shortName = theme.id === 'amber' ? 'AMBER' : theme.id === 'verdigris' ? 'GREEN' : 'IVORY';
       phosphorBtn.textContent = `[P] PHOSPHOR: ${shortName}`;
     }
@@ -172,28 +165,14 @@ function bootstrap() {
     const cell = renderer.hitTestCell(ev.clientX, ev.clientY);
     if (!cell) return;
     if (game.screen === 'title') {
-      if (cell.row >= 27 && cell.row <= 29) game.handleAction('confirm');
-      else if (cell.row === 30 && game.hasExistingSave) game.handleAction('new_game');
-      else if (cell.row === 32) game.handleAction('help');
-      else if (cell.row < 27) game.handleAction('confirm');
+      if (cell.row === 22 && game.hasExistingSave) game.handleAction('new_game');
+      else if (cell.row === 25) renderer.toggleColor();
+      else if (cell.row === 27) game.handleAction('help');
+      else game.handleAction('confirm');
     } else if (game.screen === 'help' || game.screen === 'ledger' || game.screen === 'victory' || game.screen === 'dead') {
       game.handleAction('confirm');
     } else if (game.screen === 'dialogue') {
-      if (cell.row === 35 || cell.row === 36) {
-        const buf = game.renderBuffer();
-        const rowStr = buf[cell.row].map(([ch]) => ch).join('');
-        let picked = false;
-        for (let c = Math.min(cell.col, rowStr.length - 3); c >= 0; c--) {
-          if (rowStr[c] === '[' && rowStr[c + 2] === ']' && rowStr[c + 1] >= '1' && rowStr[c + 1] <= '6') {
-            game.handleAction(`choice_${rowStr[c + 1]}`);
-            picked = true;
-            break;
-          }
-        }
-        if (!picked) game.handleAction('confirm');
-      } else {
-        game.handleAction('cancel');
-      }
+      game.handleAction('cancel');
     } else if (game.screen === 'campaign' || game.screen === 'battle') {
       game.handleCanvasClick(cell.row, cell.col);
     }
@@ -245,15 +224,18 @@ function bootstrap() {
 
   updateMetaTag();
   let last = performance.now();
+  let holdMoveCooldown = 0;
   const frame = (now) => {
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
+    holdMoveCooldown = Math.max(0, holdMoveCooldown - dt);
 
-    if ((game.screen === 'campaign' || game.screen === 'battle') && heldMoves.size > 0) {
+    if ((game.screen === 'campaign' || game.screen === 'battle') && heldMoves.size > 0 && holdMoveCooldown <= 0) {
       const lastCode = Array.from(heldMoves).pop();
       const moveAct = KEY_ACTIONS[lastCode];
       if (moveAct) {
         game.handleAction(moveAct);
+        holdMoveCooldown = 0.09;
         updateMetaTag();
       }
     }

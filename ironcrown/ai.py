@@ -151,14 +151,14 @@ def decide_tactical_ai_action(squad: Dict[str, Any], battle: Dict[str, Any]) -> 
         if dist_nearest <= 2 and battle["map"]["kind"] != "siege":
             return {"act": "move", "tx": min(BATTLE_W - 2, squad["x"] + 3), "ty": squad["y"]}
         in_range = sorted(
-            [f for f in foes if abs(f["x"] - squad["x"]) + abs(f["y"] - squad["y"]) <= 13],
+            [f for f in foes if abs(f["x"] - squad["x"]) + abs(f["y"] - squad["y"]) <= 22],
             key=lambda a: (1 if a["braced"] else 0, a["hp"]),
         )
         if in_range and squad["cooldown"] <= 0:
             return {"act": "volley", "target": in_range[0]}
         if battle["map"]["kind"] == "siege" and squad["side"] == "defender":
             return {"act": "hold"}
-        return {"act": "move", "tx": nearest["x"] + 7, "ty": nearest["y"]}
+        return {"act": "move", "tx": min(BATTLE_W - 2, nearest["x"] + 10), "ty": nearest["y"]}
 
     if squad["type"] == "horse":
         soft = next((f for f in foes if f["type"] == "bow" and not f["braced"]), None)

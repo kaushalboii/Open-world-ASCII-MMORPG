@@ -108,7 +108,7 @@ def compute_war_objective(game: Any) -> Dict[str, Any]:
                 br = bearing_label(ram["x"], ram["y"], gx, gy)
                 now_txt = "Select Ram [5] & Press [E] to SMASH Gatehouse!" if br == "HERE!" else f"Move Ram [5] to Gate [HH] ({br}) -> [E]"
                 return {"chapter": "SIEGE GATE", "target": [gx, gy], "now": now_txt, "next": "After breach, send Spearmen [2] & Horse [4] through"}
-            return {"chapter": "SCALE WALL", "target": [gx, 6], "now": "No Ram: Climb breach ladder [L] at N/S wall -> [E]", "next": "Use [B] Volleys to thin rampart bows"}
+            return {"chapter": "SCALE WALL", "target": [gx, 7], "now": "No Ram: Climb breach ladder [L] at N/S wall -> [E]", "next": "Use [B] Volleys to thin rampart bows"}
 
         if foes and guard:
             low = min(foes, key=lambda f: f["morale"])

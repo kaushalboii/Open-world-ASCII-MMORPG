@@ -7,8 +7,8 @@
 export const REALM_W = 76;
 export const REALM_H = 44;
 
-export const BATTLE_W = 66;
-export const BATTLE_H = 30;
+export const BATTLE_W = 102;
+export const BATTLE_H = 23;
 
 export const SEASONS = [
   { id: 'autumn', label: 'AUTUMN RAIN', foodMult: 1.0, moveDelay: 1.0, attrition: 0 },
@@ -469,7 +469,7 @@ export function createRealmGrid() {
 }
 
 /**
- * Generates a tactical 66x30 battlefield matched to campaign terrain or siege hold.
+ * Generates a tactical 102x23 battlefield matched to campaign terrain or siege hold.
  */
 export function buildBattleMap({ kind = 'plains', hold = null, gateBreached = false }) {
   const g = Array.from({ length: BATTLE_H }, () => Array(BATTLE_W).fill('.'));
@@ -478,51 +478,52 @@ export function buildBattleMap({ kind = 'plains', hold = null, gateBreached = fa
   };
 
   if (kind === 'siege' && hold) {
-    // Attacker starts on West (x=3..18), Defender holds Stone Curtain Wall at x=44
-    const wallX = 44;
+    // Attacker starts on West (x=10..34), Defender holds Stone Curtain Wall at x=70
+    const wallX = 70;
     for (let y = 2; y < BATTLE_H - 2; y++) {
       setTile(wallX, y, '#');
       setTile(wallX + 1, y, '#');
     }
-    // Outer stone ditch / moat with timber ramp on gate lane (y = 12..16)
+    // Outer stone ditch / moat with timber ramp on gate lane (y = 9..13) & ladder bridges (y = 7, 15)
     for (let y = 3; y < BATTLE_H - 3; y++) {
-      if (y < 12 || y > 16) setTile(wallX - 3, y, '~');
+      if (y === 7 || y === 15) setTile(wallX - 3, y, '=');
+      else if (y < 9 || y > 13) setTile(wallX - 3, y, '~');
     }
-    // Gatehouse at y = 13..15 (breachable from 'H' to '.')
-    for (let y = 13; y <= 15; y++) {
+    // Gatehouse at y = 10..12 (breachable from 'H' to '.')
+    for (let y = 10; y <= 12; y++) {
       setTile(wallX, y, gateBreached ? '.' : 'H');
       setTile(wallX + 1, y, gateBreached ? '.' : 'H');
     }
-    // North & South scaling breach notches / ladder ledges ('L')
-    setTile(wallX, 6, 'L');
-    setTile(wallX + 1, 6, 'L');
-    setTile(wallX, 23, 'L');
-    setTile(wallX + 1, 23, 'L');
+    // North & South scaling breach notches / ladder ledges ('L') between Drum Towers & Gate
+    setTile(wallX, 7, 'L');
+    setTile(wallX + 1, 7, 'L');
+    setTile(wallX, 15, 'L');
+    setTile(wallX + 1, 15, 'L');
 
     // Courtyard keep pillars behind wall
-    for (let y = 8; y <= 21; y += 6) {
-      setTile(54, y, '#');
-      setTile(55, y, '#');
+    for (let y = 6; y <= 16; y += 5) {
+      setTile(84, y, '#');
+      setTile(85, y, '#');
     }
     // Timber siege mantelets for approaching troops
-    for (const [mx, my] of [[24, 9], [28, 14], [24, 20], [34, 11], [34, 18]]) {
+    for (const [mx, my] of [[36, 7], [44, 11], [36, 16], [54, 8], [54, 15]]) {
       setTile(mx, my, 'T');
     }
-    return { grid: g, wallX, gateY: 14, kind: 'siege' };
+    return { grid: g, wallX, gateY: 11, kind: 'siege' };
   }
 
   if (kind === 'bridge') {
-    // North-south river cutting center x=31..34 with wide stone span at y=11..17 and icy bend y=4..5
+    // North-south river cutting center x=48..52 with wide stone span at y=9..13 and icy bend y=3..4
     for (let y = 0; y < BATTLE_H; y++) {
-      for (let x = 31; x <= 34; x++) setTile(x, y, '~');
+      for (let x = 48; x <= 52; x++) setTile(x, y, '~');
     }
-    for (let y = 12; y <= 17; y++) {
-      for (let x = 30; x <= 35; x++) setTile(x, y, '=');
+    for (let y = 9; y <= 13; y++) {
+      for (let x = 47; x <= 53; x++) setTile(x, y, '=');
     }
-    for (let y = 4; y <= 5; y++) {
-      for (let x = 31; x <= 34; x++) setTile(x, y, ':');
+    for (let y = 3; y <= 4; y++) {
+      for (let x = 48; x <= 52; x++) setTile(x, y, ':');
     }
-    for (const [fx, fy] of [[21, 6], [22, 7], [20, 22], [44, 7], [46, 21]]) {
+    for (const [fx, fy] of [[28, 5], [30, 6], [27, 17], [68, 5], [70, 17]]) {
       setTile(fx, fy, 'T');
       setTile(fx + 1, fy, 'T');
     }
@@ -532,8 +533,8 @@ export function buildBattleMap({ kind = 'plains', hold = null, gateBreached = fa
   if (kind === 'forest' || kind === 'mud') {
     const ch = kind === 'forest' ? 'T' : ',';
     const clusters = [
-      [20, 6], [21, 7], [26, 13], [27, 14], [22, 22],
-      [38, 8], [40, 16], [42, 23], [33, 5], [34, 24],
+      [26, 5], [29, 6], [36, 11], [38, 12], [28, 17],
+      [58, 6], [62, 13], [66, 17], [48, 4], [50, 18],
     ];
     for (const [cx, cy] of clusters) {
       for (let dy = -1; dy <= 1; dy++) {
@@ -546,13 +547,13 @@ export function buildBattleMap({ kind = 'plains', hold = null, gateBreached = fa
   }
 
   // Open plains with subtle ridge cover
-  for (const [rx, ry] of [[28, 7], [29, 7], [37, 21], [38, 21], [33, 14]]) {
+  for (const [rx, ry] of [[40, 6], [42, 6], [60, 16], [62, 16], [51, 11]]) {
     setTile(rx, ry, 'n');
   }
   return { grid: g, wallX: null, gateY: null, kind: 'plains' };
 }
 
-export function makeDefaultRegiments(ownerTag, scale = 1.0, includeRam = false) {
+export function makeDefaultRegiments(ownerTag, scale = 1.0, includeRam = true) {
   const list = [
     { id: `${ownerTag}_guard`, type: 'guard', men: Math.round(35 * scale), maxMen: Math.round(35 * scale), morale: 92 },
     { id: `${ownerTag}_spear`, type: 'spear', men: Math.round(60 * scale), maxMen: Math.round(60 * scale), morale: 84 },

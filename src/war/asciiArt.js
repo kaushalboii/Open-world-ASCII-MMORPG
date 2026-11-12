@@ -678,8 +678,8 @@ export function renderBattleScenery(buf, battle, clock, pulseWaves, originX = 1,
       '|%%#####%%|',
       '|_________|',
     ];
-    stampSprite(buf, originX + wx - 1, originY + 1, towerArt, { baseGrade: GRADE_LIT, tone: TONE_STONE, bounds });
-    stampSprite(buf, originX + wx - 1, originY + rows - 7, towerArt, { baseGrade: GRADE_LIT, tone: TONE_STONE, bounds });
+    stampSprite(buf, originX + wx - 1, originY, towerArt, { baseGrade: GRADE_LIT, tone: TONE_STONE, bounds });
+    stampSprite(buf, originX + wx - 1, originY + rows - 6, towerArt, { baseGrade: GRADE_LIT, tone: TONE_STONE, bounds });
 
     // Parapet vertical stone blocks with climbing notch gaps ('L') respected cleanly!
     for (let y = 0; y < rows; y++) {
@@ -695,7 +695,7 @@ export function renderBattleScenery(buf, battle, clock, pulseWaves, originX = 1,
     }
 
     // Braziers blazing atop watchtowers
-    stampSprite(buf, originX + wx + 2, originY + 2, [torch], {
+    stampSprite(buf, originX + wx + 2, originY + 1, [torch], {
       baseGrade: GRADE_BRIGHT,
       highlightChars: new Set(['(', ')', '*', '^']),
       tone: TONE_FIRE,

@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 REALM_W = 76
 REALM_H = 44
-BATTLE_W = 66
-BATTLE_H = 30
+BATTLE_W = 102
+BATTLE_H = 23
 
 SEASONS: List[Dict[str, Any]] = [
     {"id": "autumn", "label": "AUTUMN RAIN", "food_mult": 1.0, "move_delay": 1.0, "attrition": 0},
@@ -181,7 +181,7 @@ def create_realm_grid() -> Tuple[List[List[str]], List[Tuple[int, int]]]:
 
 
 def build_battle_map(kind: str = "plains", hold: Optional[Dict[str, Any]] = None, gate_breached: bool = False) -> Dict[str, Any]:
-    """Generate a tactical 66x30 battlefield matched to terrain or siege hold."""
+    """Generate a tactical 102x23 battlefield matched to terrain or siege hold."""
     g = [["." for _ in range(BATTLE_W)] for _ in range(BATTLE_H)]
 
     def set_tile(x: int, y: int, ch: str) -> None:
@@ -189,45 +189,47 @@ def build_battle_map(kind: str = "plains", hold: Optional[Dict[str, Any]] = None
             g[y][x] = ch
 
     if kind == "siege" and hold:
-        wall_x = 44
+        wall_x = 70
         for y in range(2, BATTLE_H - 2):
             set_tile(wall_x, y, "#")
             set_tile(wall_x + 1, y, "#")
         for y in range(3, BATTLE_H - 3):
-            if y < 12 or y > 16:
+            if y in (7, 15):
+                set_tile(wall_x - 3, y, "=")
+            elif y < 9 or y > 13:
                 set_tile(wall_x - 3, y, "~")
-        for y in range(13, 16):
+        for y in range(10, 13):
             ch = "." if gate_breached else "H"
             set_tile(wall_x, y, ch)
             set_tile(wall_x + 1, y, ch)
-        for ly in (6, 23):
+        for ly in (7, 15):
             set_tile(wall_x, ly, "L")
             set_tile(wall_x + 1, ly, "L")
-        for ky in range(8, 22, 6):
-            set_tile(54, ky, "#")
-            set_tile(55, ky, "#")
-        for mx, my in [(24, 9), (28, 14), (24, 20), (34, 11), (34, 18)]:
+        for ky in range(6, 17, 5):
+            set_tile(84, ky, "#")
+            set_tile(85, ky, "#")
+        for mx, my in [(36, 7), (44, 11), (36, 16), (54, 8), (54, 15)]:
             set_tile(mx, my, "T")
-        return {"grid": g, "wall_x": wall_x, "gate_y": 14, "kind": "siege"}
+        return {"grid": g, "wall_x": wall_x, "gate_y": 11, "kind": "siege"}
 
     if kind == "bridge":
         for y in range(BATTLE_H):
-            for x in range(31, 35):
+            for x in range(48, 53):
                 set_tile(x, y, "~")
-        for y in range(12, 18):
-            for x in range(30, 36):
+        for y in range(9, 14):
+            for x in range(47, 54):
                 set_tile(x, y, "=")
-        for y in range(4, 6):
-            for x in range(31, 35):
+        for y in range(3, 5):
+            for x in range(48, 53):
                 set_tile(x, y, ":")
-        for fx, fy in [(21, 6), (22, 7), (20, 22), (44, 7), (46, 21)]:
+        for fx, fy in [(28, 5), (30, 6), (27, 17), (68, 5), (70, 17)]:
             set_tile(fx, fy, "T")
             set_tile(fx + 1, fy, "T")
         return {"grid": g, "wall_x": None, "gate_y": None, "kind": "bridge"}
 
     if kind in ("forest", "mud"):
         ch = "T" if kind == "forest" else ","
-        clusters = [(20, 6), (21, 7), (26, 13), (27, 14), (22, 22), (38, 8), (40, 16), (42, 23), (33, 5), (34, 24)]
+        clusters = [(26, 5), (29, 6), (36, 11), (38, 12), (28, 17), (58, 6), (62, 13), (66, 17), (48, 4), (50, 18)]
         for cx, cy in clusters:
             for dy in range(-1, 2):
                 for dx in range(-1, 2):
@@ -235,12 +237,12 @@ def build_battle_map(kind: str = "plains", hold: Optional[Dict[str, Any]] = None
                         set_tile(cx + dx, cy + dy, ch)
         return {"grid": g, "wall_x": None, "gate_y": None, "kind": kind}
 
-    for rx, ry in [(28, 7), (29, 7), (37, 21), (38, 21), (33, 14)]:
+    for rx, ry in [(40, 6), (42, 6), (60, 16), (62, 16), (51, 11)]:
         set_tile(rx, ry, "n")
     return {"grid": g, "wall_x": None, "gate_y": None, "kind": "plains"}
 
 
-def make_default_regiments(owner_tag: str, scale: float = 1.0, include_ram: bool = False) -> List[Dict[str, Any]]:
+def make_default_regiments(owner_tag: str, scale: float = 1.0, include_ram: bool = True) -> List[Dict[str, Any]]:
     list_r = [
         {"id": f"{owner_tag}_guard", "type": "guard", "men": round(35 * scale), "max_men": round(35 * scale), "morale": 92},
         {"id": f"{owner_tag}_spear", "type": "spear", "men": round(60 * scale), "max_men": round(60 * scale), "morale": 84},

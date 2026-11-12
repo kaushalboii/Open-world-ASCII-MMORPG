@@ -52,36 +52,29 @@ class IroncrownTests(unittest.TestCase):
 
     def test_all_screens_strict_104x38_ascii(self) -> None:
         g = IroncrownGame(save_path=None, seed=717)
-        title_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # title
+        title_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # minimal title
         self.assertGreaterEqual(len(title_tones), 8)
-        g.handle_action("steed")
-        steed_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # steed
-        self.assertGreaterEqual(len(steed_tones), 6)
-        g.handle_action("cancel")
-        g.handle_action("confirm")
-        self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # campaign + prologue
-        g.handle_action("confirm")
-        camp_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # campaign
-        self.assertGreaterEqual(len(camp_tones), 8)
-        g.handle_action("interact")
-        dlg_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # dialogue
-        self.assertGreaterEqual(len(dlg_tones), 8)
-        g.handle_action("cancel")
-        g.handle_action("ledger")
-        self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # ledger
-        g.handle_action("cancel")
         g.handle_action("help")
-        self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # help
+        help_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # help
+        self.assertGreaterEqual(len(help_tones), 3)
         g.handle_action("cancel")
-        g.start_siege_battle(next(h for h in g.holds if h["id"] == "redwatch"))
-        battle_tones = self._assert_strict_grid(g.render_buffer(), g.tone_buffer)  # battle
+        g.handle_action("confirm")
+        self.assertEqual(g.screen, "battle")
+        self.assertIsNone(g.active_story)
+        buf = g.render_buffer()
+        battle_tones = self._assert_strict_grid(buf, g.tone_buffer)  # battleground + small bottom map
         self.assertGreaterEqual(len(battle_tones), 8)
+        row26 = "".join(ch for ch, _ in buf[26])
+        self.assertIn("SMALL REALM MAP", row26)
+        map_txt = "\n".join("".join(ch for ch, _ in r) for r in buf[27:36])
+        for tag in ("BLK", "ASH", "GRY", "OLD", "SLT", "ROK", "RED", "KGB", "HGC"):
+            self.assertIn(tag, map_txt)
 
     def test_supply_winter_dread_and_siege_ram_progression(self) -> None:
         g = IroncrownGame(save_path=None, seed=717)
         g.handle_action("confirm")
-        self.assertEqual(g.active_story["id"], "prologue")
-        g.handle_action("confirm")
+        self.assertEqual(g.screen, "battle")
+        self.assertEqual(g.battle["source_hold"]["id"], "redwatch")
 
         # Dread mitigates Utility AI betrayal
         vance = g.get_house("vance")
@@ -92,12 +85,9 @@ class IroncrownTests(unittest.TestCase):
         high_d = compute_house_betrayal_utility(vance, th, 80, g.holds)
         self.assertLess(high_d, low_d)
 
-        # Build Siege Ram -> Council Bribe -> Siege Kingsbridge Gate Breach
-        g.handle_action("interact")
-        g.handle_action("choice_4")  # Build Ram
-        g.handle_action("cancel")
+        # Siege Kingsbridge Gate Breach directly (Ram [5] already provisioned)
         kb = next(h for h in g.holds if h["id"] == "kingsbridge")
-        g.start_siege_battle(kb)
+        g.deploy_to_hold(kb)
         self.assertIn("Ram [5]", compute_war_objective(g)["now"])
         ram_sq = next(s for s in g.battle["player_squads"] if s["type"] == "ram")
         ram_sq["x"] = g.battle["map"]["wall_x"] - 1
@@ -112,7 +102,9 @@ class IroncrownTests(unittest.TestCase):
             es["routed"] = True
         g.handle_action("confirm")
         self.assertEqual(kb["owner"], "thorne")
-        self.assertEqual(g.active_story["id"], "highcrown_gates")
+        self.assertEqual(g.screen, "battle")
+        self.assertEqual(g.battle["outcome"], "victory")
+        self._assert_strict_grid(g.render_buffer(), g.tone_buffer)
 
     def test_atomic_save_and_bak_recovery(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

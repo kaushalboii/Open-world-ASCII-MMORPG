@@ -169,16 +169,16 @@ export function decideTacticalAiAction(squad, battle, helper) {
       return { act: 'move', tx: Math.min(BATTLE_W - 2, squad.x + 3), ty: squad.y, mode: 'skirmish_back' };
     }
     const volleyTargets = foes
-      .filter((f) => Math.abs(f.x - squad.x) + Math.abs(f.y - squad.y) <= 13)
+      .filter((f) => Math.abs(f.x - squad.x) + Math.abs(f.y - squad.y) <= 22)
       .sort((a, b) => (a.braced ? 1 : 0) - (b.braced ? 1 : 0) || a.hp - b.hp);
     if (volleyTargets.length > 0 && squad.cooldown <= 0) {
       return { act: 'volley', target: volleyTargets[0] };
     }
     if (battle.map.kind === 'siege' && squad.side === 'defender') {
-      // Defenders hold ramparts near x = 46..48
+      // Defenders hold ramparts near x = 72..76
       return { act: 'hold' };
     }
-    return { act: 'move', tx: nearestFoe.x + 7, ty: nearestFoe.y, mode: 'bow_range' };
+    return { act: 'move', tx: Math.min(BATTLE_W - 2, nearestFoe.x + 10), ty: nearestFoe.y, mode: 'bow_range' };
   }
 
   // Heavy Cavalry looks for open flanks (especially enemy archers) & charges on cooldown

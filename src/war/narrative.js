@@ -117,7 +117,7 @@ export function computeWarObjective(game) {
       }
       return {
         chapter: 'SCALE WALL',
-        target: [b.map.wallX - 1, 6],
+        target: [b.map.wallX - 1, 7],
         now: 'No Ram: Climb breach ladder [L] at N/S wall -> [E]',
         next: 'Use [B] Volleys to thin rampart bows',
       };

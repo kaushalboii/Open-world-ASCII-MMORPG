@@ -982,8 +982,8 @@ def render_battle_scenery(
             "|%%#####%%|",
             "|_________|",
         ]
-        stamp_sprite(buf, origin_x + wall_x - 1, origin_y + 1, tower, GRADE_LIT, bounds, tone_buf=tone_buf, tone=TONE_STONE)
-        stamp_sprite(buf, origin_x + wall_x - 1, origin_y + BATTLE_H - 7, tower, GRADE_LIT, bounds, tone_buf=tone_buf, tone=TONE_STONE)
+        stamp_sprite(buf, origin_x + wall_x - 1, origin_y, tower, GRADE_LIT, bounds, tone_buf=tone_buf, tone=TONE_STONE)
+        stamp_sprite(buf, origin_x + wall_x - 1, origin_y + BATTLE_H - 6, tower, GRADE_LIT, bounds, tone_buf=tone_buf, tone=TONE_STONE)
 
         for r in range(BATTLE_H):
             tile = grid[r][wall_x]
@@ -1005,7 +1005,7 @@ def render_battle_scenery(
                         tone_buf[origin_y + r][origin_x + wall_x + 1] = TONE_STONE
 
         brazier_hi = {"(", ")", "*", "^"}
-        stamp_sprite(buf, origin_x + wall_x + 2, origin_y + 2, [brazier], GRADE_BRIGHT, bounds, brazier_hi, tone_buf=tone_buf, tone=TONE_FIRE, hi_tone=TONE_FIRE)
+        stamp_sprite(buf, origin_x + wall_x + 2, origin_y + 1, [brazier], GRADE_BRIGHT, bounds, brazier_hi, tone_buf=tone_buf, tone=TONE_FIRE, hi_tone=TONE_FIRE)
         stamp_sprite(buf, origin_x + wall_x + 2, origin_y + BATTLE_H - 5, [brazier], GRADE_BRIGHT, bounds, brazier_hi, tone_buf=tone_buf, tone=TONE_FIRE, hi_tone=TONE_FIRE)
 
         gy = int(bmap["gate_y"])  # type: ignore[index]

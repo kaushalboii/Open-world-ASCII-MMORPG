@@ -10,22 +10,18 @@ from ironcrown.engine import IroncrownGame
 
 
 def run_headless_demo(seed: int = 717) -> Dict[str, object]:
-    """Run deterministic strategic campaign + live siege battle smoke check."""
+    """Run deterministic Battleground + Small Bottom Map siege smoke check."""
     game = IroncrownGame(save_path=None, seed=seed)
-    game.handle_action("confirm")   # Title -> Campaign + Prologue Story Dispatch
-    game.handle_action("confirm")   # Dismiss story card
-    game.handle_action("council")   # Open Small Council -> Bribe Gate Warden
-    game.handle_action("choice_1")
-    game.handle_action("cancel")
-    game.handle_action("fork")      # Outrider Scout reveal pulse
-    game.handle_action("move_e")
-    game.handle_action("move_e")
-
-    redwatch = next(h for h in game.holds if h["id"] == "redwatch")
-    game.start_siege_battle(redwatch)
+    game.handle_action("confirm")   # Minimal Title -> Redwatch Siege Battleground
     game.handle_action("choice_3")  # Bows
     game.handle_action("volley")
-    game.handle_action("choice_1")  # Guard charge
+    game.handle_action("choice_5")  # Siege Ram
+    ram_sq = next(s for s in game.battle["player_squads"] if s["type"] == "ram")
+    ram_sq["x"] = game.battle["map"]["wall_x"] - 1
+    ram_sq["y"] = game.battle["map"]["gate_y"]
+    game.handle_action("interact")  # Ram strike on Gatehouse
+    game.handle_action("ledger")    # Switch to Next Keep via Small Map shortcut [M]
+    game.handle_action("choice_1")
     game.handle_action("strike")
     buf = game.render_buffer()
     return {

@@ -68,42 +68,35 @@ const storage = {
 const game = new IroncrownGame({ storage, seed: 717 });
 assertStrictAsciiFrame(game.renderBuffer(), 'title');
 
-// Start fresh campaign -> Prologue Chronicle pops inside viewport
+// Start from minimal Title -> launches directly into Redwatch Battleground + Small Bottom Map!
 game.handleAction('confirm');
-assert.equal(game.screen, 'campaign');
-assert.ok(game.activeStory && game.activeStory.id === 'prologue', 'Prologue Chronicle must appear in-place');
-const storyBuf = game.renderBuffer();
-assertStrictAsciiFrame(storyBuf, 'campaign_with_prologue');
-assert.ok(storyBuf.map((r) => r.map(([c]) => c).join('')).join('\n').includes('WAR CHRONICLE:'));
-assert.ok(storyBuf[34].map(([c]) => c).join('').includes('NOW ['), 'Row 34 must render live objective bar');
-
-// Dismiss Chronicle via Enter without unintended move
-game.handleAction('confirm');
-assert.equal(game.activeStory, null);
-assert.equal(game.campaign.px, 28);
-
-// Muster Capped Ram at Blackpike
-game.handleAction('interact');
-assert.equal(game.screen, 'dialogue');
-game.handleAction('choice_4'); // Build Capped Ram (80g)
+assert.equal(game.screen, 'battle');
+assert.equal(game.activeStory, null, 'No blocking story chronicle popup should appear');
+assert.equal(game.battle.sourceHold.id, 'redwatch', 'Initial battleground starts at Redwatch Bastion');
 const ram = game.playerRegiments.find((r) => r.type === 'ram');
-assert.ok(ram && ram.men === 12, 'Muster should add Capped Siege Ram');
-game.handleAction('cancel');
-assert.equal(game.screen, 'campaign');
+assert.ok(ram && ram.men === 12, 'Capped Siege Ram [5] must be immediately ready');
 
-// Open Small Council -> Bribe Gate Warden at Redwatch
-game.handleAction('council');
-assert.equal(game.screen, 'dialogue');
-game.handleAction('choice_1');
-assert.equal(game.flags.bribed_redwatch, true, 'Bribe Warden should set pre-bribed gate flag');
-game.handleAction('cancel');
+const batBuf = game.renderBuffer();
+const batTones = assertStrictAsciiFrame(batBuf, 'battle_with_small_map');
+assert.ok(batTones.size >= 8, `Expected multi-color battleground (>=8 tones), got ${batTones.size}`);
+const row1Txt = batBuf[1].map(([c]) => c).join('');
+const row26Txt = batBuf[26].map(([c]) => c).join('');
+assert.ok(row1Txt.includes('BATTLEGROUND'), 'Row 1 must display full-width Battleground frame');
+assert.ok(row26Txt.includes('SMALL REALM MAP'), 'Row 26 must display Small Realm Map at the bottom');
+const mapAreaTxt = batBuf.slice(27, 36).map((r) => r.map(([c]) => c).join('')).join('\n');
+for (const tag of ['BLK', 'ASH', 'GRY', 'OLD', 'SLT', 'ROK', 'RED', 'KGB', 'HGC']) {
+  assert.ok(mapAreaTxt.includes(tag), `Small bottom map must render Hold tag ${tag}`);
+}
 
-// Open Raven menu -> Send Charter to House Brack to stabilize alliance
-const prevBrackRel = game.getHouse('brack').relation;
-game.handleAction('raven');
-game.handleAction('choice_1');
-assert.ok(game.getHouse('brack').relation > prevBrackRel, 'Raven Charter must raise Brack relation');
-game.handleAction('cancel');
+// Click a Keep directly on the bottom Small Map (Kingsbridge) -> switches Battleground immediately!
+const kbHold = game.holds.find((h) => h.id === 'kingsbridge');
+const [kbX, kbY] = game._realmToSmallMap(kbHold.x, kbHold.y);
+game.handleCanvasClick(kbY, kbX);
+assert.equal(game.screen, 'battle');
+assert.equal(game.battle.sourceHold.id, 'kingsbridge', 'Clicking Kingsbridge on bottom map must launch Kingsbridge Siege');
+assert.equal(game.battle.gateBreached, false);
+assert.ok(computeWarObjective(game).now.includes('Ram [5]'), 'Objective must guide Ram toward unbroken gate');
+assertStrictAsciiFrame(game.renderBuffer(), 'battle_kingsbridge_clicked');
 
 // Verify Betrayal risk Utility AI drops when Dread rises
 const vance = game.getHouse('vance');
@@ -114,15 +107,7 @@ th.dread = 85;
 const highDreadRisk = computeHouseBetrayalUtility(vance, th, 80, game.holds);
 assert.ok(highDreadRisk < lowDreadRisk, 'Dread must suppress Utility betrayal score');
 
-// Test Siege Battle with Gatehouse Ram smashing (unbribed Kingsbridge!)
-const kingsbridge = game.holds.find((h) => h.id === 'kingsbridge');
-game.startSiegeBattle(kingsbridge);
-assert.equal(game.screen, 'battle');
-assert.equal(game.battle.gateBreached, false);
-assert.ok(computeWarObjective(game).now.includes('Ram [5]'), 'Objective must guide Ram toward unbroken gate');
-assertStrictAsciiFrame(game.renderBuffer(), 'battle_siege');
-
-// Drive Ram [5] up to Gate [HH] and smash it open
+// Drive Ram [5] up to Gate [HH] and smash it open on 102x23 Battleground
 game.handleAction('choice_5');
 const ramSq = game.battle.playerSquads.find((s) => s.type === 'ram');
 ramSq.x = game.battle.map.wallX - 1;
@@ -133,7 +118,7 @@ while (!game.battle.gateBreached) {
 assert.equal(game.battle.gateBreached, true, 'Ram blows must smash Keep Gatehouse open');
 assert.equal(game.battle.map.grid[game.battle.map.gateY][game.battle.map.wallX], '.');
 
-// Test Volleys, Shield Wall, War-Horn Rally, and Flanking Victory
+// Test Volleys, Shield Wall, War-Horn Rally, and Hold Capture staying in Battleground + Small Map!
 game.handleAction('choice_2'); // Spear
 game.handleAction('parry');    // Toggle shield wall
 game.handleAction('choice_3'); // Bows
@@ -144,8 +129,18 @@ for (const e of game.battle.enemySquads) {
   e.routed = true;
 }
 game.handleAction('confirm'); // 1 battle tick resolves rout victory -> captures Kingsbridge!
-assert.equal(kingsbridge.owner, 'thorne', 'Breaking garrison morale must capture Keep');
-assert.equal(game.activeStory.id, 'highcrown_gates', 'Capturing Kingsbridge triggers Highcrown final beat');
+assert.equal(kbHold.owner, 'thorne', 'Breaking garrison morale must capture Keep');
+assert.equal(game.screen, 'battle', 'Must remain on Battleground + Small Map view after capturing Hold');
+assert.equal(game.battle.outcome, 'victory');
+assertStrictAsciiFrame(game.renderBuffer(), 'battle_captured_stay');
+
+// Press [M] -> jumps straight to next unconquered Keep (Highcrown)
+const rwHold = game.holds.find((h) => h.id === 'redwatch');
+game.captureHold(rwHold);
+game.captureHold(game.holds.find((h) => h.id === 'oldford'));
+game.captureHold(game.holds.find((h) => h.id === 'rookkeep'));
+game.handleAction('ledger');
+assert.equal(game.battle.sourceHold.id, 'highcrown', 'Pressing [M] after captures must advance to Highcrown Citadel');
 
 // Verify Highcrown Citadel victory transitions to victory screen cleanly
 const highcrown = game.holds.find((h) => h.id === 'highcrown');
@@ -153,18 +148,18 @@ game.captureHold(highcrown);
 assert.equal(game.screen, 'victory');
 assertStrictAsciiFrame(game.renderBuffer(), 'victory');
 
-// Save/Load persistence round-trip + Ledger/Help screens
-game.screen = 'campaign';
+// Save/Load persistence round-trip + Help screen (loads straight into Battleground!)
+game.screen = 'battle';
 assert.equal(game.saveGame(), true);
 const g2 = new IroncrownGame({ storage, seed: 717 });
 assert.equal(g2.hasExistingSave, true);
 assert.equal(g2.loadGame(), true);
+assert.equal(g2.screen, 'battle');
 assert.equal(g2.heldCount(), game.heldCount());
-g2.handleAction('ledger');
-assertStrictAsciiFrame(g2.renderBuffer(), 'ledger');
-g2.handleAction('cancel');
 g2.handleAction('help');
 assertStrictAsciiFrame(g2.renderBuffer(), 'help');
+g2.handleAction('cancel');
+assert.equal(g2.screen, 'battle');
 
 // Verify Canvas Renderer + Audio headless instantiation cleanly
 let atlasDraws = 0;
